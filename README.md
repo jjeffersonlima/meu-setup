@@ -168,6 +168,9 @@ Se você prefere a praticidade de **subir Stacks colando arquivos Compose no nav
 # Iniciar o Portainer e abrir no navegador do Windows automaticamente:
 portainer
 
+# Se o Portainer solicitar o Setup Token no primeiro acesso, veja-o com:
+portainer token
+
 # Verificar status do Portainer e containers em execução:
 portainer status
 
@@ -301,6 +304,7 @@ Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final 
 | Atalho | O que faz |
 | :--- | :--- |
 | `portainer` | Inicia o Portainer CE e abre a interface web em `http://localhost:9000` |
+| `portainer token` | Exibe o Setup Token inicial gerado pelo container do Portainer |
 | `portainer stop` | Desliga o Portainer e libera a memória RAM |
 | `portainer stop-all`| Pausa **todos os containers ativos** para devolver 100% da RAM/CPU ao Windows |
 | `portainer status` | Exibe o estado do Portainer e containers em execução |

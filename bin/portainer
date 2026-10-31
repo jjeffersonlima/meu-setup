@@ -99,8 +99,17 @@ iniciar_portainer() {
             --restart=no \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "${NOME_VOLUME}:/data" \
-            "$IMAGEM_PORTAINER" >/dev/null
+            "$IMAGEM_PORTAINER" \
+            --no-setup-token >/dev/null
         echo -e "${GREEN}✔ Container do Portainer criado e iniciado!${NC}"
+    fi
+
+    # Se um Setup Token tiver sido gerado em instâncias anteriores, exibe claramente para cópia
+    local setup_token
+    setup_token=$(docker logs "$NOME_CONTAINER" 2>&1 | grep -o 'setup_token=[a-zA-Z0-9]*' | tail -n 1 | cut -d= -f2 || true)
+    if [ -n "$setup_token" ]; then
+        echo -e "\n  🔑 ${YELLOW}${BOLD}SETUP TOKEN DO PORTAINER:${NC} ${CYAN}${BOLD}${setup_token}${NC}"
+        echo -e "     ${YELLOW}(Copie e cole na tela inicial caso o Portainer solicite)${NC}"
     fi
 
     echo -e "\n${BOLD}${GREEN}🌐 Acesse o painel web em:${NC} ${CYAN}${URL_PORTAINER}${NC}"
@@ -176,11 +185,23 @@ mostrar_logs() {
     fi
 }
 
+mostrar_token() {
+    garantir_docker
+    local setup_token
+    setup_token=$(docker logs "$NOME_CONTAINER" 2>&1 | grep -o 'setup_token=[a-zA-Z0-9]*' | tail -n 1 | cut -d= -f2 || true)
+    if [ -n "$setup_token" ]; then
+        echo -e "\n  🔑 ${YELLOW}${BOLD}SETUP TOKEN DO PORTAINER:${NC} ${CYAN}${BOLD}${setup_token}${NC}\n"
+    else
+        echo -e "\n${GREEN}Nenhum Setup Token pendente encontrado (ou o Portainer foi iniciado sem exigência de token).${NC}\n"
+    fi
+}
+
 mostrar_ajuda() {
     mostrar_banner
     echo -e "Uso: ${BOLD}portainer${NC} [comando]\n"
     echo -e "Comandos disponíveis:"
     echo -e "  ${CYAN}portainer${NC} (ou ${CYAN}start${NC}, ${CYAN}on${NC})    Inicia o Portainer e abre no navegador (http://localhost:9000)"
+    echo -e "  ${CYAN}portainer token${NC}              Exibe o Setup Token gerado nos logs do container"
     echo -e "  ${CYAN}portainer stop${NC} (ou ${CYAN}off${NC})       Desliga o Portainer e libera a memória RAM"
     echo -e "  ${CYAN}portainer stop-all${NC}           Pausa ${BOLD}TODOS${NC} os containers ativos para liberar 100% da RAM"
     echo -e "  ${CYAN}portainer status${NC}             Exibe o estado do Portainer e outros containers ativos"
@@ -195,6 +216,10 @@ case "$acao" in
     start|on|up)
         mostrar_banner
         iniciar_portainer
+        ;;
+    token)
+        mostrar_banner
+        mostrar_token
         ;;
     stop|off|down)
         mostrar_banner
