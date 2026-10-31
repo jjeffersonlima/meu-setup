@@ -196,12 +196,23 @@ mostrar_token() {
     fi
 }
 
+reiniciar_limpo() {
+    garantir_docker
+    echo -e "${YELLOW}Removendo container do Portainer para recriar no modo sem token...${NC}"
+    docker stop "$NOME_CONTAINER" >/dev/null 2>&1 || true
+    docker rm "$NOME_CONTAINER" >/dev/null 2>&1 || true
+    docker volume rm "$NOME_VOLUME" >/dev/null 2>&1 || true
+    echo -e "${GREEN}✔ Ambiente limpo! Reiniciando Portainer sem exigência de token...${NC}"
+    iniciar_portainer
+}
+
 mostrar_ajuda() {
     mostrar_banner
     echo -e "Uso: ${BOLD}portainer${NC} [comando]\n"
     echo -e "Comandos disponíveis:"
     echo -e "  ${CYAN}portainer${NC} (ou ${CYAN}start${NC}, ${CYAN}on${NC})    Inicia o Portainer e abre no navegador (http://localhost:9000)"
     echo -e "  ${CYAN}portainer token${NC}              Exibe o Setup Token gerado nos logs do container"
+    echo -e "  ${CYAN}portainer reset${NC}              Recria o Portainer do zero no modo sem token"
     echo -e "  ${CYAN}portainer stop${NC} (ou ${CYAN}off${NC})       Desliga o Portainer e libera a memória RAM"
     echo -e "  ${CYAN}portainer stop-all${NC}           Pausa ${BOLD}TODOS${NC} os containers ativos para liberar 100% da RAM"
     echo -e "  ${CYAN}portainer status${NC}             Exibe o estado do Portainer e outros containers ativos"
@@ -220,6 +231,10 @@ case "$acao" in
     token)
         mostrar_banner
         mostrar_token
+        ;;
+    reset|recreate)
+        mostrar_banner
+        reiniciar_limpo
         ;;
     stop|off|down)
         mostrar_banner
