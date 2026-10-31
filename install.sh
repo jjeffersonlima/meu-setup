@@ -1,0 +1,530 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# meu-setup: install.sh
+# Automação de ambiente de desenvolvimento moderna, leve e idempotente para WSL.
+# Focado em: Automações, Sites (Astro), Aplicações e Sistemas.
+# ==============================================================================
+
+set -uo pipefail
+
+# Paleta de cores para mensagens
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+DIR_SETUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR_LOCAL_BIN="$HOME/.local/bin"
+mkdir -p "$DIR_LOCAL_BIN"
+
+# Marcadores para o ~/.bashrc
+BASHRC_MARKER_START="# >>> meu-setup >>>"
+BASHRC_MARKER_END="# <<< meu-setup <<<"
+
+# ------------------------------------------------------------------------------
+# Funções de Logging e Feedback Visual
+# ------------------------------------------------------------------------------
+log_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+log_sucesso() {
+    echo -e "${GREEN}✔${NC} $1"
+}
+
+log_aviso() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+log_pulado() {
+    echo -e "${CYAN}↷ [JÁ INSTALADO / CONFIGURADO]${NC} $1"
+}
+
+log_erro() {
+    echo -e "${RED}✖ [ERRO]${NC} $1"
+}
+
+log_secao() {
+    echo -e "\n${BOLD}${MAGENTA}==>${NC} ${BOLD}$1${NC}"
+}
+
+# ------------------------------------------------------------------------------
+# Banner e Boas-Vindas
+# ------------------------------------------------------------------------------
+mostrar_banner() {
+    clear 2>/dev/null || true
+    echo -e "${CYAN}"
+    echo "  ╔════════════════════════════════════════════════════════════════╗"
+    echo "  ║                                                                ║"
+    echo "  ║                      🛠️   M E U - S E T U P                    ║"
+    echo "  ║         Ambiente de Desenvolvimento Automatizado para WSL      ║"
+    echo "  ║                                                                ║"
+    echo "  ╚════════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    echo -e "  Focado em: ${GREEN}Automações${NC} | ${GREEN}Sites (Astro)${NC} | ${GREEN}Apps (Node/TS & Python)${NC} | ${GREEN}Docker${NC}\n"
+}
+
+# ------------------------------------------------------------------------------
+# Detecção de Ambiente WSL
+# ------------------------------------------------------------------------------
+verificar_wsl() {
+    log_secao "Verificando ambiente do sistema"
+    if grep -qi "microsoft" /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
+        local wsl_versao="WSL 2 / 3"
+        log_sucesso "Detectado ambiente: ${BOLD}Linux sob WSL (${WSL_DISTRO_NAME:-Ubuntu})${NC}"
+    else
+        log_aviso "Aviso: Ambiente Linux nativo detectado (não é WSL). O script funcionará perfeitamente!"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Solicitar credenciais Sudo antecipadamente (apenas se necessário)
+# ------------------------------------------------------------------------------
+checar_sudo() {
+    if [ "$EUID" -ne 0 ]; then
+        log_info "Alguns pacotes do sistema precisam de privilégios de administrador (sudo)."
+        if sudo -v; then
+            # Mantém o token do sudo vivo durante a execução
+            while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+        else
+            log_erro "Não foi possível obter permissões de sudo. Algumas etapas podem falhar."
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 1. Configuração do WSL (/etc/wsl.conf - systemd)
+# ------------------------------------------------------------------------------
+configurar_wsl_conf() {
+    log_secao "1. Otimização do WSL (/etc/wsl.conf)"
+    
+    local wsl_conf="/etc/wsl.conf"
+    local precisa_configurar=false
+
+    if [ ! -f "$wsl_conf" ] || ! grep -q "systemd=true" "$wsl_conf" 2>/dev/null; then
+        precisa_configurar=true
+    fi
+
+    if [ "$precisa_configurar" = true ]; then
+        log_info "Habilitando systemd e interoperação no WSL para suporte total ao Docker e serviços..."
+        sudo bash -c "cat >> $wsl_conf" << 'EOF'
+
+[boot]
+systemd=true
+
+[interop]
+enabled=true
+appendWindowsPath=true
+
+[automount]
+enabled=true
+options="metadata,umask=22,fmask=11"
+EOF
+        log_sucesso "Arquivo /etc/wsl.conf configurado com systemd ativado!"
+        log_aviso "Lembrete: Após a instalação, você pode reiniciar o WSL no Windows PowerShell com: wsl --shutdown"
+    else
+        log_pulado "systemd já está ativo em /etc/wsl.conf"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 2. Pacote Essencial de Ferramentas CLI
+# ------------------------------------------------------------------------------
+instalar_pacote_essencial() {
+    log_secao "2. Pacote Essencial de Ferramentas CLI"
+    
+    local pacotes=(curl wget git jq fzf ripgrep build-essential unzip ca-certificates gnupg lsb-release)
+    local pacotes_faltando=()
+
+    for pkg in "${pacotes[@]}"; do
+        if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+            pacotes_faltando+=("$pkg")
+        fi
+    done
+
+    if [ ${#pacotes_faltando[@]} -eq 0 ]; then
+        log_pulado "Todas as ferramentas essenciais já estão instaladas (${pacotes[*]})"
+    else
+        log_info "Instalando ferramentas faltantes: ${YELLOW}${pacotes_faltando[*]}${NC}..."
+        sudo apt update -y
+        sudo apt install -y "${pacotes_faltando[@]}"
+        log_sucesso "Ferramentas essenciais instaladas com sucesso!"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 3. Prompt Starship & Customização do Terminal
+# ------------------------------------------------------------------------------
+instalar_starship() {
+    log_secao "3. Prompt Moderno: Starship"
+
+    if command -v starship >/dev/null 2>&1; then
+        log_pulado "Starship prompt já está instalado ($(starship --version | head -n 1))"
+    else
+        log_info "Instalando o Starship (prompt ultra-rápido em Rust)..."
+        curl -sS https://starship.rs/install.sh | sh -s -- -y -b "$DIR_LOCAL_BIN"
+        log_sucesso "Starship instalado em $DIR_LOCAL_BIN/starship!"
+    fi
+
+    # Configuração do starship.toml
+    mkdir -p "$HOME/.config"
+    if [ -f "$DIR_SETUP/configs/starship.toml" ]; then
+        cp "$DIR_SETUP/configs/starship.toml" "$HOME/.config/starship.toml"
+        log_sucesso "Configuração do Starship copiada para ~/.config/starship.toml"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 4. Node.js & Ecossistema Astro (fnm + pnpm)
+# ------------------------------------------------------------------------------
+instalar_node_e_astro() {
+    log_secao "4. Node.js, pnpm & Ecossistema Astro"
+
+    # 1. Instalar fnm (Fast Node Manager) se não existir
+    if command -v fnm >/dev/null 2>&1 || [ -f "$HOME/.local/share/fnm/fnm" ]; then
+        log_pulado "fnm (Fast Node Manager) já está instalado."
+    else
+        log_info "Instalando fnm (gerenciador de Node.js ultra-rápido em Rust)..."
+        curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$HOME/.local/share/fnm" --skip-shell
+        export PATH="$HOME/.local/share/fnm:$PATH"
+        eval "$(fnm env 2>/dev/null || true)"
+        log_sucesso "fnm instalado com sucesso!"
+    fi
+
+    # Carregar fnm na sessão atual
+    if [ -d "$HOME/.local/share/fnm" ]; then
+        export PATH="$HOME/.local/share/fnm:$PATH"
+        eval "$(fnm env --use-on-cd 2>/dev/null || true)"
+    fi
+
+    # 2. Instalar Node LTS se não existir
+    if command -v node >/dev/null 2>&1; then
+        log_pulado "Node.js já instalado: $(node -v)"
+    else
+        log_info "Instalando Node.js versão LTS (Long Term Support)..."
+        fnm install --lts
+        fnm default lts-latest
+        log_sucesso "Node.js $(node -v 2>/dev/null || echo 'LTS') instalado com sucesso!"
+    fi
+
+    # 3. Instalar pnpm (padrão recomendado pela equipe do Astro)
+    if command -v pnpm >/dev/null 2>&1; then
+        log_pulado "pnpm já está instalado ($(pnpm -v))"
+    else
+        log_info "Instalando pnpm (gerenciador de pacotes rápido e eficiente para Astro e Node)..."
+        if command -v corepack >/dev/null 2>&1; then
+            corepack enable >/dev/null 2>&1 || npm install -g pnpm
+        else
+            npm install -g pnpm
+        fi
+        log_sucesso "pnpm instalado com sucesso!"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 5. Python & Automações (uv + venv)
+# ------------------------------------------------------------------------------
+instalar_python_e_uv() {
+    log_secao "5. Python para Automações & uv (Astral)"
+
+    # Instalar python3-venv e pip se faltar
+    if ! dpkg -s python3-venv >/dev/null 2>&1; then
+        log_info "Instalando python3-venv do sistema..."
+        sudo apt install -y python3-venv python3-pip
+    else
+        log_pulado "python3-venv já está instalado no sistema."
+    fi
+
+    # Instalar uv (ferramenta moderna em Rust da Astral, substitui pip/pyenv com 100x mais velocidade)
+    if command -v uv >/dev/null 2>&1 || [ -f "$HOME/.cargo/bin/uv" ] || [ -f "$DIR_LOCAL_BIN/uv" ]; then
+        log_pulado "uv já está instalado ($("$HOME/.local/bin/uv" --version 2>/dev/null || uv --version 2>/dev/null || echo 'uv'))"
+    else
+        log_info "Instalando uv (o gerenciador de Python e pacotes mais rápido do mundo)..."
+        curl -LsSf https://astral.sh/uv/install.sh | env CARGO_HOME="" UV_INSTALL_DIR="$DIR_LOCAL_BIN" sh
+        log_sucesso "uv instalado em $DIR_LOCAL_BIN/uv!"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 6. Docker Nativo (Docker Engine + Compose via systemd)
+# ------------------------------------------------------------------------------
+instalar_docker() {
+    log_secao "6. Docker Engine Nativo & Docker Compose"
+
+    if command -v docker >/dev/null 2>&1; then
+        log_pulado "Docker já está instalado ($(docker --version))"
+    else
+        log_info "Instalando Docker Engine nativo no WSL..."
+        sudo apt update -y
+        sudo apt install -y docker.io docker-compose-plugin
+        log_sucesso "Docker Engine instalado!"
+    fi
+
+    # Adicionar usuário atual ao grupo docker (para não precisar usar 'sudo docker')
+    if groups "$USER" | grep -q "\bdocker\b"; then
+        log_pulado "Usuário '$USER' já está no grupo 'docker'."
+    else
+        log_info "Adicionando o usuário '$USER' ao grupo docker..."
+        sudo usermod -aG docker "$USER"
+        log_sucesso "Usuário adicionado ao grupo docker! (Faça logout/login ou use 'newgrp docker')"
+    fi
+
+    # Habilitar e iniciar serviço docker via systemd se disponível
+    if command -v systemctl >/dev/null 2>&1; then
+        if sudo systemctl is-active --quiet docker; then
+            log_pulado "Serviço Docker já está em execução."
+        else
+            log_info "Iniciando e habilitando serviço Docker no systemd..."
+            sudo systemctl enable --now docker 2>/dev/null || true
+            log_sucesso "Serviço Docker iniciado!"
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 7. Configuração Guiada do Git & GitHub
+# ------------------------------------------------------------------------------
+configurar_git() {
+    log_secao "7. Configuração do Git e GitHub"
+
+    # Nome e Email
+    local current_name
+    local current_email
+    current_name=$(git config --global user.name || true)
+    current_email=$(git config --global user.email || true)
+
+    if [ -n "$current_name" ] && [ -n "$current_email" ]; then
+        log_pulado "Git já configurado para: $current_name <$current_email>"
+    else
+        echo -e "${YELLOW}Identidade Git não configurada.${NC}"
+        read -rp "Digite seu Nome completo para o Git: " git_nome
+        read -rp "Digite seu E-mail para o Git: " git_email
+
+        if [ -n "$git_nome" ]; then
+            git config --global user.name "$git_nome"
+        fi
+        if [ -n "$git_email" ]; then
+            git config --global user.email "$git_email"
+        fi
+        log_sucesso "Identidade Git configurada com sucesso!"
+    fi
+
+    # Branch padrão main
+    local default_branch
+    default_branch=$(git config --global init.defaultBranch || true)
+    if [ "$default_branch" != "main" ]; then
+        git config --global init.defaultBranch main
+        log_sucesso "Branch padrão do Git definida como 'main'."
+    else
+        log_pulado "Branch padrão já é 'main'."
+    fi
+
+    # Global gitignore
+    mkdir -p "$HOME/.config/git"
+    if [ -f "$DIR_SETUP/configs/gitignore_global" ]; then
+        cp "$DIR_SETUP/configs/gitignore_global" "$HOME/.config/git/ignore"
+        git config --global core.excludesFile "$HOME/.config/git/ignore"
+        log_sucesso "Gitignore global instalado em ~/.config/git/ignore"
+    fi
+
+    # Chave SSH
+    if [ -f "$HOME/.ssh/id_ed25519" ]; then
+        log_pulado "Chave SSH id_ed25519 já existe em ~/.ssh/"
+    else
+        echo -e "\n${YELLOW}Deseja gerar uma chave SSH (Ed25519) para conectar com GitHub/GitLab? [S/n]${NC}"
+        read -rp "> " resp_ssh
+        resp_ssh=${resp_ssh:-S}
+        if [[ "$resp_ssh" =~ ^[Ss]$ ]]; then
+            local ssh_email
+            ssh_email=$(git config --global user.email || echo "$USER@wsl")
+            ssh-keygen -t ed25519 -C "$ssh_email" -f "$HOME/.ssh/id_ed25519" -N ""
+            log_sucesso "Chave SSH gerada com sucesso!"
+            echo -e "${CYAN}Sua chave pública (copie para o GitHub -> Settings -> SSH Keys):${NC}"
+            cat "$HOME/.ssh/id_ed25519.pub"
+            echo ""
+        fi
+    fi
+
+    # GitHub CLI (gh)
+    if command -v gh >/dev/null 2>&1; then
+        log_pulado "GitHub CLI (gh) já instalado."
+    else
+        if dpkg -s gh >/dev/null 2>&1; then
+            log_pulado "GitHub CLI (gh) já instalado via apt."
+        else
+            log_info "Instalando GitHub CLI (gh)..."
+            sudo apt install -y gh 2>/dev/null || {
+                # Se não estiver no repositório padrão do Ubuntu
+                type -p curl >/dev/null || sudo apt install curl -y
+                curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null || true
+                sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null || true
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+                sudo apt update -y && sudo apt install -y gh 2>/dev/null || true
+            }
+            if command -v gh >/dev/null 2>&1; then
+                log_sucesso "GitHub CLI (gh) instalado!"
+            fi
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 8. Aliases, Variáveis de Ambiente e ~/.bashrc
+# ------------------------------------------------------------------------------
+configurar_bashrc() {
+    log_secao "8. Configuração de Aliases e Ambiente (~/.bashrc)"
+
+    # Instala o utilitário novo-projeto em ~/.local/bin/
+    if [ -f "$DIR_SETUP/bin/novo-projeto" ]; then
+        cp "$DIR_SETUP/bin/novo-projeto" "$DIR_LOCAL_BIN/novo-projeto"
+        chmod +x "$DIR_LOCAL_BIN/novo-projeto"
+        log_sucesso "Utilitário 'novo-projeto' instalado em $DIR_LOCAL_BIN/novo-projeto"
+    fi
+
+    # Garante backup do ~/.bashrc
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    cp "$HOME/.bashrc" "$HOME/.bashrc.backup.$timestamp" 2>/dev/null || true
+
+    # Remove bloco anterior se existir para garantir atualização limpa sem duplicar
+    if grep -q "$BASHRC_MARKER_START" "$HOME/.bashrc" 2>/dev/null; then
+        log_info "Atualizando bloco existente de configurações em ~/.bashrc..."
+        sed -i "/$BASHRC_MARKER_START/,/$BASHRC_MARKER_END/d" "$HOME/.bashrc"
+    fi
+
+    # Escreve o bloco limpo
+    cat << 'EOF' >> "$HOME/.bashrc"
+
+# >>> meu-setup >>>
+# Caminho para utilitários locais do usuário
+export PATH="$HOME/.local/bin:$PATH"
+
+# fnm (Fast Node Manager)
+if [ -d "$HOME/.local/share/fnm" ]; then
+    export PATH="$HOME/.local/share/fnm:$PATH"
+    eval "$(fnm env --use-on-cd 2>/dev/null)"
+fi
+
+# uv (Python package manager)
+if [ -d "$HOME/.local/bin" ] && [ -f "$HOME/.local/bin/uv" ]; then
+    eval "$(uv generate-shell-completion bash 2>/dev/null)"
+fi
+
+# Starship Prompt
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init bash)"
+fi
+
+# Aliases úteis para o dia a dia
+alias ll='ls -lah --color=auto'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias update='sudo apt update && sudo apt upgrade -y'
+alias ports='netstat -tulanp 2>/dev/null || ss -tulanp'
+alias myip='hostname -I | awk "{print \$1}"'
+alias open='explorer.exe 2>/dev/null || xdg-open'
+alias code='code 2>/dev/null || true'
+
+# Aliases para projetos e sites
+alias novo='novo-projeto'
+alias novo-astro='pnpm create astro@latest'
+alias novo-python='novo-projeto'
+# <<< meu-setup <<<
+EOF
+
+    log_sucesso "Configurações e aliases injetados no ~/.bashrc sem duplicatas!"
+}
+
+# ------------------------------------------------------------------------------
+# Resumo Final e Guia Rápido
+# ------------------------------------------------------------------------------
+mostrar_conclusao() {
+    echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║               🎉 Instalação Concluída com Sucesso!              ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}\n"
+
+    echo -e "${BOLD}O que foi configurado para você:${NC}"
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Starship Prompt:${NC} Prompt bonito e ágil com status de git, node e python."
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Node.js & pnpm:${NC} Gerenciado por fnm, pronto para desenvolver sites com Astro."
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Python & uv:${NC} O ambiente mais rápido para automações, APIs e scripts."
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Docker Engine:${NC} Containers e bancos de dados nativos via systemd."
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Git & GitHub:${NC} Chave SSH, branch 'main' e .gitignore global pré-configurado."
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Comando 'novo':${NC} Execute ${CYAN}novo${NC} no terminal para iniciar qualquer projeto!\n"
+
+    echo -e "${YELLOW}Como começar agora mesmo:${NC}"
+    echo -e "  1. Recarregue seu terminal com:"
+    echo -e "     ${CYAN}source ~/.bashrc${NC}\n"
+    echo -e "  2. Crie seu primeiro site ou automação:"
+    echo -e "     ${CYAN}novo${NC}  ${YELLOW}(ou 'novo-astro', 'novo-python')${NC}\n"
+    echo -e "  3. Para abrir pastas no VS Code ou no Windows:"
+    echo -e "     ${CYAN}code .${NC}     (abre no VS Code)"
+    echo -e "     ${CYAN}open .${NC}     (abre a pasta atual no Explorer do Windows)\n"
+}
+
+# ------------------------------------------------------------------------------
+# Execução Principal (Menu)
+# ------------------------------------------------------------------------------
+mostrar_banner
+verificar_wsl
+
+echo -e "Como você gostaria de prosseguir?\n"
+echo -e "  ${YELLOW}1)${NC} ${BOLD}Instalação Completa Recomendada${NC} (Instala tudo de forma rápida e segura)"
+echo -e "  ${YELLOW}2)${NC} ${BOLD}Instalação Personalizada${NC} (Pergunta ferramenta por ferramenta [S/n])"
+echo -e "  ${YELLOW}3)${NC} Sair\n"
+
+read -rp "Escolha uma opção [1-3]: " modo_instalacao
+modo_instalacao=${modo_instalacao:-1}
+
+case "$modo_instalacao" in
+    1)
+        checar_sudo
+        configurar_wsl_conf
+        instalar_pacote_essencial
+        instalar_starship
+        instalar_node_e_astro
+        instalar_python_e_uv
+        instalar_docker
+        configurar_git
+        configurar_bashrc
+        mostrar_conclusao
+        ;;
+    2)
+        checar_sudo
+        
+        read -rp "Otimizar /etc/wsl.conf com systemd e interop? [S/n]: " r_wsl
+        [[ "${r_wsl:-S}" =~ ^[Ss]$ ]] && configurar_wsl_conf
+
+        read -rp "Instalar Pacote Essencial CLI (curl, git, jq, fzf, ripgrep, build-essential)? [S/n]: " r_cli
+        [[ "${r_cli:-S}" =~ ^[Ss]$ ]] && instalar_pacote_essencial
+
+        read -rp "Instalar Starship Prompt (barra de terminal visual moderna)? [S/n]: " r_star
+        [[ "${r_star:-S}" =~ ^[Ss]$ ]] && instalar_starship
+
+        read -rp "Instalar Node.js LTS, fnm e pnpm (para Astro e sites)? [S/n]: " r_node
+        [[ "${r_node:-S}" =~ ^[Ss]$ ]] && instalar_node_e_astro
+
+        read -rp "Instalar Python e uv (para automações e scripts rápidos)? [S/n]: " r_py
+        [[ "${r_py:-S}" =~ ^[Ss]$ ]] && instalar_python_e_uv
+
+        read -rp "Instalar Docker Engine nativo e Docker Compose? [S/n]: " r_dock
+        [[ "${r_dock:-S}" =~ ^[Ss]$ ]] && instalar_docker
+
+        read -rp "Configurar Git, branch 'main', global .gitignore e SSH? [S/n]: " r_git
+        [[ "${r_git:-S}" =~ ^[Ss]$ ]] && configurar_git
+
+        configurar_bashrc
+        mostrar_conclusao
+        ;;
+    3)
+        echo -e "${YELLOW}Instalação abortada pelo usuário.${NC}"
+        exit 0
+        ;;
+    *)
+        log_erro "Opção inválida. Execução cancelada."
+        exit 1
+        ;;
+esac

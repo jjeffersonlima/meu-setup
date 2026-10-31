@@ -1,0 +1,57 @@
+# Configuração do Starship Prompt - meu-setup
+# Documentação oficial: https://starship.rs/config/
+
+add_newline = true
+
+# Formato do prompt limpo, moderno e responsivo
+format = """
+$username\
+$hostname\
+$directory\
+$git_branch\
+$git_status\
+$nodejs\
+$python\
+$docker_context\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+style = "bold cyan"
+read_only = " 🔒"
+
+[git_branch]
+symbol = "🌱 "
+style = "bold purple"
+
+[git_status]
+style = "bold red"
+format = '([\[$all_status$ahead_behind\]]($style) )'
+
+[nodejs]
+symbol = "⬢ "
+style = "bold green"
+format = "via [$symbol($version )]($style)"
+detect_files = ["package.json", ".node-version", ".nvmrc"]
+
+[python]
+symbol = "🐍 "
+style = "bold yellow"
+format = 'via [${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
+
+[docker_context]
+symbol = "🐳 "
+style = "blue bold"
+format = "via [$symbol$context]($style) "
+
+[cmd_duration]
+min_time = 2000
+style = "bold yellow"
+format = "levou [$duration]($style) "

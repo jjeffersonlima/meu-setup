@@ -1,0 +1,51 @@
+# Global Gitignore - meu-setup
+# Arquivos que você NUNCA quer versionar acidentalmente
+
+# Sistemas Operacionais
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Variáveis de ambiente e segredos (NUNCA comite credenciais!)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDEs e Editores
+.vscode/*.log
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs e temporários
+*.log
+tmp/
+temp/
