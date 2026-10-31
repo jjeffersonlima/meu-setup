@@ -260,7 +260,14 @@ instalar_docker() {
     else
         log_info "Instalando Docker Engine nativo no WSL..."
         sudo apt update -y
-        sudo apt install -y docker.io docker-compose-plugin
+        # No repositório oficial do Ubuntu o plugin se chama docker-compose-v2; no repo externo da Docker se chama docker-compose-plugin
+        if apt-cache show docker-compose-v2 >/dev/null 2>&1; then
+            sudo apt install -y docker.io docker-compose-v2
+        elif apt-cache show docker-compose-plugin >/dev/null 2>&1; then
+            sudo apt install -y docker.io docker-compose-plugin
+        else
+            sudo apt install -y docker.io
+        fi
         log_sucesso "Docker Engine instalado!"
     fi
 
