@@ -164,7 +164,51 @@ else
     imprimir_linha_tabela "Lazydocker (ld)" "${RED}✖ NÃO INSTALADO${NC}" "lazydocker ausente em ~/.local/bin"
 fi
 
-# 9. Git & Identidade & Chave SSH
+# 9. Lazygit (Git Visual)
+((TOTAL_VERIFICACOES++))
+if command -v lazygit >/dev/null 2>&1 || [ -f "$HOME/.local/bin/lazygit" ]; then
+    LG_VER=$("$HOME/.local/bin/lazygit" --version 2>/dev/null | grep -o 'version=[^,]*' | head -n 1 | cut -d= -f2)
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Lazygit (lg)" "${GREEN}✔ SUCESSO${NC}" "v${LG_VER:-0.66.2} (TUI ativo)"
+else
+    ((TOTAL_FALHAS++))
+    imprimir_linha_tabela "Lazygit (lg)" "${RED}✖ NÃO INSTALADO${NC}" "lazygit ausente em ~/.local/bin"
+fi
+
+# 10. Zoxide (Navegação Inteligente em Rust)
+((TOTAL_VERIFICACOES++))
+if command -v zoxide >/dev/null 2>&1 || [ -f "$HOME/.local/bin/zoxide" ]; then
+    ZOX_VER=$("$HOME/.local/bin/zoxide" --version 2>/dev/null | awk '{print $2}')
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Zoxide (z)" "${GREEN}✔ SUCESSO${NC}" "v${ZOX_VER:-0.10.0} (Rust)"
+else
+    ((TOTAL_FALHAS++))
+    imprimir_linha_tabela "Zoxide (z)" "${RED}✖ NÃO INSTALADO${NC}" "zoxide ausente em ~/.local/bin"
+fi
+
+# 11. Bat (Visualizador de Código com Sintaxe em Rust)
+((TOTAL_VERIFICACOES++))
+if command -v bat >/dev/null 2>&1 || [ -f "$HOME/.local/bin/bat" ]; then
+    BAT_VER=$("$HOME/.local/bin/bat" --version 2>/dev/null | awk '{print $2}')
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Bat (Visualizador)" "${GREEN}✔ SUCESSO${NC}" "v${BAT_VER:-0.26.1} (Rust)"
+else
+    ((TOTAL_FALHAS++))
+    imprimir_linha_tabela "Bat (Visualizador)" "${RED}✖ NÃO INSTALADO${NC}" "bat ausente em ~/.local/bin"
+fi
+
+# 12. Eza (Listagem de Pastas Moderna em Rust)
+((TOTAL_VERIFICACOES++))
+if command -v eza >/dev/null 2>&1 || [ -f "$HOME/.local/bin/eza" ]; then
+    EZA_VER=$("$HOME/.local/bin/eza" --version 2>/dev/null | head -n 2 | tail -n 1)
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Eza (Listagem ll)" "${GREEN}✔ SUCESSO${NC}" "${EZA_VER:-v0.23.5} (Rust)"
+else
+    ((TOTAL_FALHAS++))
+    imprimir_linha_tabela "Eza (Listagem ll)" "${RED}✖ NÃO INSTALADO${NC}" "eza ausente em ~/.local/bin"
+fi
+
+# 13. Git & Identidade & Chave SSH
 ((TOTAL_VERIFICACOES++))
 GIT_NAME=$(git config --global user.name || true)
 GIT_EMAIL=$(git config --global user.email || true)
@@ -178,7 +222,7 @@ else
     imprimir_linha_tabela "Git & Identidade" "${YELLOW}⚠ PARCIAL${NC}" "Nome ou e-mail git não configurados"
 fi
 
-# 10. Utilitários locais e Aliases (~/.bashrc)
+# 14. Utilitários locais e Aliases (~/.bashrc)
 ((TOTAL_VERIFICACOES++))
 if [ -L "$HOME/.local/bin/novo-projeto" ] && [ -L "$HOME/.local/bin/atualizar" ]; then
     ((TOTAL_SUCESSOS++))

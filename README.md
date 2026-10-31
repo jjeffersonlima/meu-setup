@@ -22,6 +22,10 @@
 | **Python & Automações** | **[uv (Astral)](https://docs.astral.sh/uv/)** | Gerenciador de Python e pacotes 10-100x mais rápido que pip/pyenv. Cria ambientes virtuais instantaneamente. |
 | **Containers & Bancos** | **Docker Engine + Compose** | Rodando nativamente com `systemd`, com permissão configurada para rodar sem `sudo`. |
 | **Docker Visual** | **[Lazydocker](https://github.com/jesseduffield/lazydocker) (`ld`)** | Interface TUI ultraleve no terminal com suporte a mouse, logs em tempo real e monitoramento de CPU/RAM. |
+| **Git Visual** | **[Lazygit](https://github.com/jesseduffield/lazygit) (`lg`)** | Interface visual no terminal para commits, diffs e push sem precisar memorizar comandos complexos. |
+| **Navegação Rápida** | **[Zoxide](https://github.com/ajeetdsouza/zoxide) (`z`)** | Navegação inteligente em Rust: pula para pastas de projetos digitando só parte do nome. |
+| **Leitura de Código** | **[Bat](https://github.com/sharkdp/bat)** | Substituto do `cat` em Rust com destaque de sintaxe colorida e números de linha. |
+| **Listagem Moderna** | **[Eza](https://github.com/eza-community/eza) (`ll`, `tree`)** | Substituto do `ls` em Rust com ícones, status do Git e visão em árvore. |
 | **Controle de Versão** | **Git + GitHub CLI (`gh`)** | Branch padrão `main`, `.gitignore` global e geração opcional de chave SSH Ed25519. |
 | **CLI Essentials** | `curl`, `git`, `jq`, `fzf`, `ripgrep`, `build-essential` | Utilitários fundamentais para inspecionar APIs, buscar código e compilar pacotes. |
 | **Utilitário de Projetos**| **`novo-projeto`** (alias: `novo`) | Gerador interativo para criar novos sites em Astro, scripts de automação Python ou Docker Compose. |
@@ -155,7 +159,62 @@ lazydocker
 
 ---
 
-### 6. Manutenção & Atualização Contínua (`atualizar`) 🔄
+### 6. Git Visual no Terminal com Lazygit (`lg`) 🌿
+
+Assim como o Lazydocker cuida dos containers, o **Lazygit** permite gerenciar todo o fluxo do Git sem comandos complicados:
+
+```bash
+# Abrir o painel visual do Git
+lg
+# ou
+lazygit
+```
+
+**Principais recursos:**
+- **Navegação com Teclas ou Mouse:** Clique nos arquivos alterados para ver o diff em cores.
+- **Stage e Unstage:** Pressione `Espaço` em cima de um arquivo (ou linha) para preparar para o commit.
+- **Commit Rápido:** Pressione `c`, digite a mensagem e dê Enter.
+- **Push para o GitHub:** Pressione `P` (Shift + P) para enviar seus commits.
+- **Pull de Atualizações:** Pressione `p` (minúsculo) para baixar alterações.
+- `q` -> Sair do Lazygit.
+
+---
+
+### 7. Navegação e Produtividade em Rust (`z`, `bat`, `ll`, `tree`) ⚡
+
+Ferramentas modernas escritas em Rust, que rodam instantaneamente com **zero consumo de memória em segundo plano**:
+
+#### 🏃‍♂️ Navegação Inteligente com Zoxide (`z`)
+Esqueça comandos longos como `cd ~/projetos/automacoes/scripts`. O Zoxide aprende quais pastas você frequenta:
+```bash
+# Pular direto para a pasta do setup de qualquer lugar:
+z setup
+# Pular para um projeto de site:
+z astro
+# Abrir busca visual interativa com setas:
+zi
+```
+
+#### 📖 Leitura Colorida de Código com Bat (`bat`)
+Para visualizar arquivos de código ou configuração formatados e com números de linha diretamente no terminal:
+```bash
+bat package.json
+bat install.sh
+```
+
+#### 📁 Listagem Moderna de Arquivos com Eza (`ll` e `tree`)
+Substituto do `ls` com destaque de cores por tamanho, ícones e status de Git:
+```bash
+# Listagem detalhada com status do Git ao lado de cada arquivo:
+ll
+
+# Visualização de pastas e subpastas em formato de árvore:
+tree
+```
+
+---
+
+### 8. Manutenção & Atualização Contínua (`atualizar`) 🔄
 
 Para manter todo o seu ecossistema de desenvolvimento sempre rápido, seguro e sem arquivos órfãos ocupando espaço no WSL, basta rodar um único comando:
 
@@ -168,14 +227,14 @@ atualizar
 2. Remove pacotes órfãos e limpa o cache do APT (`autoremove` e `clean`) para economizar espaço de disco do WSL.
 3. Atualiza o gerenciador Python `uv` para a versão mais recente (`uv self update`).
 4. Atualiza o gerenciador Node `pnpm` globalmente.
-5. Atualiza o **Lazydocker** e verifica o **Starship**.
+5. Atualiza o **Lazydocker**, **Lazygit**, **Zoxide**, **Bat**, **Eza** e verifica o **Starship**.
 6. Executa `git pull` no seu repositório `meu-setup` para puxar novos utilitários e atualizações.
 7. Pergunta de forma segura se você deseja fazer uma faxina no Docker (`docker system prune`).
 8. Mostra um relatório final com o espaço em disco liberado.
 
 ---
 
-### 7. Diagnóstico de Saúde & Auditoria (`diagnostico` ou `doctor`) 🩺
+### 9. Diagnóstico de Saúde & Auditoria (`diagnostico` ou `doctor`) 🩺
 
 Para garantir total transparência e nunca ficar em dúvida se alguma ferramenta falhou ao instalar ou parou de funcionar, o setup inclui um sistema de diagnóstico completo:
 
@@ -193,7 +252,8 @@ doctor
 - **Python & uv:** Valida a presença do ambiente moderno da Astral.
 - **Docker Engine & Daemon:** Testa se o Docker está instalado, se o Compose v2 funciona e se o daemon está respondendo.
 - **Permissões de Usuário:** Verifica se seu usuário está no grupo `docker` para rodar sem `sudo`.
-- **Lazydocker:** Confirma a prontidão do painel visual.
+- **Lazydocker & Lazygit:** Confirma a prontidão dos painéis visuais de terminal.
+- **Zoxide, Bat & Eza:** Valida os utilitários de alta performance em Rust.
 - **Git & Chave SSH:** Verifica identidade global e presença de chave Ed25519.
 - **Symlinks Locais:** Garante que todos os executáveis estão linkados em `~/.local/bin/`.
 
@@ -207,15 +267,20 @@ Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final 
 
 ---
 
-### 8. Atalhos Úteis no Terminal
+### 10. Atalhos Úteis no Terminal
 
 | Atalho | O que faz |
 | :--- | :--- |
+| `z <pasta>` | Pula direto para uma pasta de projeto aprendida (ex: `z setup`, `z astro`) |
+| `zi` | Abre a busca interativa de pastas com setas de teclado do Zoxide |
+| `lg` | Abre o painel visual do Git (**Lazygit**) no terminal |
+| `ld` | Abre o painel visual do Docker (**Lazydocker**) no terminal |
+| `bat <arquivo>`| Exibe arquivos de código ou texto com destaque de sintaxe e paginação |
+| `ll` | Listagem moderna de arquivos com status do Git e ícones (**Eza**) |
+| `tree` | Visualiza árvore de pastas e arquivos no terminal |
 | `novo` | Abre o assistente interativo para criar novos projetos (Astro, Python, Node, Docker) |
-| `atualizar` / `update` | Atualização completa de APT, uv, pnpm, starship, repositório e faxina de disco |
+| `atualizar` / `update` | Atualização completa de APT, uv, pnpm, starship, ferramentas Rust/Go e repositório |
 | `diagnostico` / `doctor`| Varredura completa da saúde e versões de todas as ferramentas do ambiente |
-| `ld` | Abre o painel visual do Docker (Lazydocker) no terminal |
-| `ll` | Lista arquivos detalhadamente com permissões e tamanho formatado (`ls -lah`) |
 | `ports` | Mostra quais portas locais estão abertas (ex: 3000, 4321, 5432, 8080) |
 | `myip` | Exibe o endereço IP interno da sua máquina WSL |
 | `open .` | Abre a pasta atual do Linux diretamente no Windows Explorer |
@@ -223,7 +288,7 @@ Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final 
 
 ---
 
-### 9. Dicas Úteis do WSL
+### 11. Dicas Úteis do WSL
 
 - **Acessar arquivos do Windows no WSL:** Estão localizados em `/mnt/c/Users/SeuUsuario/`.
 - **Melhor desempenho de disco:** Mantenha sempre seus projetos dentro da home do Linux (ex: `~/projetos/`), e **não** dentro de `/mnt/c/`. O sistema de arquivos nativo do Linux no WSL é até 10x mais rápido!

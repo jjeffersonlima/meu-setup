@@ -95,18 +95,19 @@ if command -v fnm >/dev/null 2>&1; then
     log_sucesso "fnm verificado: $(fnm --version)"
 fi
 
-# 5. Lazydocker (Docker visual)
-log_etapa "5/7" "Verificando ferramentas visuais de terminal (Lazydocker & Starship)..."
+# 5. Ferramentas Visuais e Utilitários de Alta Performance (Rust & Go)
+log_etapa "5/7" "Verificando ferramentas visuais e de performance (Lazydocker, Lazygit, Zoxide, Bat, Eza, Starship)..."
 DIR_LOCAL_BIN="$HOME/.local/bin"
 mkdir -p "$DIR_LOCAL_BIN"
+ARCH="$(uname -m)"
 
+# 5.1 Lazydocker
 if command -v lazydocker >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazydocker" ]; then
-    log_info "Atualizando Lazydocker para a versão mais recente..."
-    ARCH="$(uname -m)"
+    log_info "Verificando atualização do Lazydocker..."
+    LAZY_ARCH=""
     case "$ARCH" in
         x86_64) LAZY_ARCH="x86_64" ;;
         aarch64|arm64) LAZY_ARCH="arm64" ;;
-        *) LAZY_ARCH="" ;;
     esac
 
     if [ -n "$LAZY_ARCH" ]; then
@@ -120,16 +121,129 @@ if command -v lazydocker >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazydocker" ]; 
                 if [ -f "$TEMP_DIR/lazydocker" ]; then
                     mv "$TEMP_DIR/lazydocker" "$DIR_LOCAL_BIN/lazydocker"
                     chmod +x "$DIR_LOCAL_BIN/lazydocker"
-                    log_sucesso "Lazydocker atualizado para $LATEST_TAG!"
+                    log_sucesso "Lazydocker verificado: $LATEST_TAG"
                 fi
             fi
             rm -rf "$TEMP_DIR"
         fi
     fi
-else
-    log_info "Lazydocker não instalado. O instalador do meu-setup pode configurá-lo."
 fi
 
+# 5.2 Lazygit
+if command -v lazygit >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazygit" ]; then
+    log_info "Verificando atualização do Lazygit..."
+    LG_ARCH=""
+    case "$ARCH" in
+        x86_64) LG_ARCH="x86_64" ;;
+        aarch64|arm64) LG_ARCH="arm64" ;;
+    esac
+
+    if [ -n "$LG_ARCH" ]; then
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$LATEST_TAG" ]; then
+            TAR_FILE="lazygit_${LATEST_TAG#v}_linux_${LG_ARCH}.tar.gz"
+            DOWNLOAD_URL="https://github.com/jesseduffield/lazygit/releases/download/${LATEST_TAG}/${TAR_FILE}"
+            TEMP_DIR=$(mktemp -d)
+            if curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/$TAR_FILE" 2>/dev/null; then
+                tar -xzf "$TEMP_DIR/$TAR_FILE" -C "$TEMP_DIR" lazygit 2>/dev/null || true
+                if [ -f "$TEMP_DIR/lazygit" ]; then
+                    mv "$TEMP_DIR/lazygit" "$DIR_LOCAL_BIN/lazygit"
+                    chmod +x "$DIR_LOCAL_BIN/lazygit"
+                    log_sucesso "Lazygit verificado: $LATEST_TAG"
+                fi
+            fi
+            rm -rf "$TEMP_DIR"
+        fi
+    fi
+fi
+
+# 5.3 Zoxide
+if command -v zoxide >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/zoxide" ]; then
+    log_info "Verificando atualização do Zoxide..."
+    ZOX_ARCH=""
+    case "$ARCH" in
+        x86_64) ZOX_ARCH="x86_64" ;;
+        aarch64|arm64) ZOX_ARCH="aarch64" ;;
+    esac
+
+    if [ -n "$ZOX_ARCH" ]; then
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/ajeetdsouza/zoxide/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$LATEST_TAG" ]; then
+            TAR_FILE="zoxide-${LATEST_TAG#v}-${ZOX_ARCH}-unknown-linux-musl.tar.gz"
+            DOWNLOAD_URL="https://github.com/ajeetdsouza/zoxide/releases/download/${LATEST_TAG}/${TAR_FILE}"
+            TEMP_DIR=$(mktemp -d)
+            if curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/$TAR_FILE" 2>/dev/null; then
+                tar -xzf "$TEMP_DIR/$TAR_FILE" -C "$TEMP_DIR" zoxide 2>/dev/null || true
+                if [ -f "$TEMP_DIR/zoxide" ]; then
+                    mv "$TEMP_DIR/zoxide" "$DIR_LOCAL_BIN/zoxide"
+                    chmod +x "$DIR_LOCAL_BIN/zoxide"
+                    log_sucesso "Zoxide verificado: $LATEST_TAG"
+                fi
+            fi
+            rm -rf "$TEMP_DIR"
+        fi
+    fi
+fi
+
+# 5.4 Bat
+if command -v bat >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/bat" ]; then
+    log_info "Verificando atualização do Bat..."
+    BAT_ARCH=""
+    case "$ARCH" in
+        x86_64) BAT_ARCH="x86_64" ;;
+        aarch64|arm64) BAT_ARCH="aarch64" ;;
+    esac
+
+    if [ -n "$BAT_ARCH" ]; then
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/sharkdp/bat/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$LATEST_TAG" ]; then
+            TAR_FILE="bat-${LATEST_TAG}-${BAT_ARCH}-unknown-linux-musl.tar.gz"
+            DOWNLOAD_URL="https://github.com/sharkdp/bat/releases/download/${LATEST_TAG}/${TAR_FILE}"
+            TEMP_DIR=$(mktemp -d)
+            if curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/$TAR_FILE" 2>/dev/null; then
+                tar -xzf "$TEMP_DIR/$TAR_FILE" -C "$TEMP_DIR" 2>/dev/null || true
+                BIN_FOUND=$(find "$TEMP_DIR" -type f -name "bat" | head -n 1)
+                if [ -n "$BIN_FOUND" ] && [ -f "$BIN_FOUND" ]; then
+                    mv "$BIN_FOUND" "$DIR_LOCAL_BIN/bat"
+                    chmod +x "$DIR_LOCAL_BIN/bat"
+                    log_sucesso "Bat verificado: $LATEST_TAG"
+                fi
+            fi
+            rm -rf "$TEMP_DIR"
+        fi
+    fi
+fi
+
+# 5.5 Eza
+if command -v eza >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/eza" ]; then
+    log_info "Verificando atualização do Eza..."
+    EZA_ARCH=""
+    case "$ARCH" in
+        x86_64) EZA_ARCH="x86_64-unknown-linux-gnu" ;;
+        aarch64|arm64) EZA_ARCH="aarch64-unknown-linux-gnu" ;;
+    esac
+
+    if [ -n "$EZA_ARCH" ]; then
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/eza-community/eza/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$LATEST_TAG" ]; then
+            TAR_FILE="eza_${EZA_ARCH}.tar.gz"
+            DOWNLOAD_URL="https://github.com/eza-community/eza/releases/download/${LATEST_TAG}/${TAR_FILE}"
+            TEMP_DIR=$(mktemp -d)
+            if curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/$TAR_FILE" 2>/dev/null; then
+                tar -xzf "$TEMP_DIR/$TAR_FILE" -C "$TEMP_DIR" 2>/dev/null || true
+                BIN_FOUND=$(find "$TEMP_DIR" -type f -name "eza" | head -n 1)
+                if [ -n "$BIN_FOUND" ] && [ -f "$BIN_FOUND" ]; then
+                    mv "$BIN_FOUND" "$DIR_LOCAL_BIN/eza"
+                    chmod +x "$DIR_LOCAL_BIN/eza"
+                    log_sucesso "Eza verificado: $LATEST_TAG"
+                fi
+            fi
+            rm -rf "$TEMP_DIR"
+        fi
+    fi
+fi
+
+# 5.6 Starship
 if command -v starship >/dev/null 2>&1; then
     log_sucesso "Starship verificado: $(starship --version | head -n 1)"
 fi

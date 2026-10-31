@@ -76,7 +76,7 @@ mostrar_banner() {
     echo "  ║                                                                ║"
     echo "  ╚════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
-    echo -e "  Focado em: ${GREEN}Automações${NC} | ${GREEN}Sites (Astro)${NC} | ${GREEN}Apps (Node/TS & Python)${NC} | ${GREEN}Docker${NC}\n"
+    echo -e "  Focado em: ${GREEN}Automações${NC} | ${GREEN}Sites (Astro)${NC} | ${GREEN}Apps (Node/TS & Python)${NC} | ${GREEN}Docker & Terminal Rust${NC}\n"
 }
 
 # ------------------------------------------------------------------------------
@@ -368,6 +368,218 @@ instalar_lazydocker() {
 }
 
 # ------------------------------------------------------------------------------
+# 8. Lazygit (Interface Visual de Git no Terminal)
+# ------------------------------------------------------------------------------
+instalar_lazygit() {
+    log_secao "8. Lazygit (Interface Visual Leve para Git)"
+
+    mkdir -p "$DIR_LOCAL_BIN"
+
+    if command -v lazygit >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazygit" ]; then
+        log_pulado "Lazygit já está instalado em $DIR_LOCAL_BIN/lazygit"
+        return
+    fi
+
+    log_info "Instalando Lazygit (painel visual do Git no terminal)..."
+    local arch
+    arch="$(uname -m)"
+    local lg_arch=""
+    case "$arch" in
+        x86_64) lg_arch="x86_64" ;;
+        aarch64|arm64) lg_arch="arm64" ;;
+        *) lg_arch="" ;;
+    esac
+
+    if [ -z "$lg_arch" ]; then
+        log_aviso "Arquitetura '$arch' não suportada automaticamente para Lazygit. Pulando."
+        return
+    fi
+
+    local latest_tag
+    latest_tag=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+
+    if [ -n "$latest_tag" ]; then
+        local tar_file="lazygit_${latest_tag#v}_linux_${lg_arch}.tar.gz"
+        local download_url="https://github.com/jesseduffield/lazygit/releases/download/${latest_tag}/${tar_file}"
+        local temp_dir
+        temp_dir=$(mktemp -d)
+        if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
+            tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" lazygit 2>/dev/null || true
+            if [ -f "$temp_dir/lazygit" ]; then
+                mv "$temp_dir/lazygit" "$DIR_LOCAL_BIN/lazygit"
+                chmod +x "$DIR_LOCAL_BIN/lazygit"
+            fi
+        fi
+        rm -rf "$temp_dir"
+    fi
+
+    if [ -f "$DIR_LOCAL_BIN/lazygit" ]; then
+        chmod +x "$DIR_LOCAL_BIN/lazygit"
+        log_sucesso "Lazygit instalado com sucesso em $DIR_LOCAL_BIN/lazygit!"
+    else
+        log_aviso "Não foi possível baixar o Lazygit automaticamente."
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 9. Zoxide (Navegação Inteligente entre Diretórios em Rust)
+# ------------------------------------------------------------------------------
+instalar_zoxide() {
+    log_secao "9. Zoxide (Navegação Inteligente com comando 'z')"
+
+    mkdir -p "$DIR_LOCAL_BIN"
+
+    if command -v zoxide >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/zoxide" ]; then
+        log_pulado "Zoxide já está instalado em $DIR_LOCAL_BIN/zoxide"
+        return
+    fi
+
+    log_info "Instalando Zoxide (escrito em Rust, zero processos de fundo)..."
+    local arch
+    arch="$(uname -m)"
+    local z_arch=""
+    case "$arch" in
+        x86_64) z_arch="x86_64" ;;
+        aarch64|arm64) z_arch="aarch64" ;;
+        *) z_arch="" ;;
+    esac
+
+    if [ -n "$z_arch" ]; then
+        local latest_tag
+        latest_tag=$(curl -s "https://api.github.com/repos/ajeetdsouza/zoxide/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$latest_tag" ]; then
+            local tar_file="zoxide-${latest_tag#v}-${z_arch}-unknown-linux-musl.tar.gz"
+            local download_url="https://github.com/ajeetdsouza/zoxide/releases/download/${latest_tag}/${tar_file}"
+            local temp_dir
+            temp_dir=$(mktemp -d)
+            if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
+                tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" zoxide 2>/dev/null || true
+                if [ -f "$temp_dir/zoxide" ]; then
+                    mv "$temp_dir/zoxide" "$DIR_LOCAL_BIN/zoxide"
+                    chmod +x "$DIR_LOCAL_BIN/zoxide"
+                fi
+            fi
+            rm -rf "$temp_dir"
+        fi
+    fi
+
+    if [ ! -f "$DIR_LOCAL_BIN/zoxide" ]; then
+        curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh 2>/dev/null | env BIN_DIR="$DIR_LOCAL_BIN" sh 2>/dev/null || true
+    fi
+
+    if [ -f "$DIR_LOCAL_BIN/zoxide" ]; then
+        chmod +x "$DIR_LOCAL_BIN/zoxide"
+        log_sucesso "Zoxide instalado com sucesso em $DIR_LOCAL_BIN/zoxide!"
+    else
+        log_aviso "Não foi possível instalar o Zoxide automaticamente."
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 10. Bat (Visualizador de Código com Cores e Sintaxe em Rust)
+# ------------------------------------------------------------------------------
+instalar_bat() {
+    log_secao "10. Bat (Visualizador de Código com Destaque de Sintaxe)"
+
+    mkdir -p "$DIR_LOCAL_BIN"
+
+    if command -v bat >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/bat" ]; then
+        log_pulado "Bat já está instalado em $DIR_LOCAL_BIN/bat"
+        return
+    fi
+
+    log_info "Instalando Bat (leitor de código moderno em Rust)..."
+    local arch
+    arch="$(uname -m)"
+    local bat_arch=""
+    case "$arch" in
+        x86_64) bat_arch="x86_64" ;;
+        aarch64|arm64) bat_arch="aarch64" ;;
+        *) bat_arch="" ;;
+    esac
+
+    if [ -n "$bat_arch" ]; then
+        local latest_tag
+        latest_tag=$(curl -s "https://api.github.com/repos/sharkdp/bat/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$latest_tag" ]; then
+            local tar_file="bat-${latest_tag}-${bat_arch}-unknown-linux-musl.tar.gz"
+            local download_url="https://github.com/sharkdp/bat/releases/download/${latest_tag}/${tar_file}"
+            local temp_dir
+            temp_dir=$(mktemp -d)
+            if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
+                tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" 2>/dev/null || true
+                local bin_found
+                bin_found=$(find "$temp_dir" -type f -name "bat" | head -n 1)
+                if [ -n "$bin_found" ] && [ -f "$bin_found" ]; then
+                    mv "$bin_found" "$DIR_LOCAL_BIN/bat"
+                    chmod +x "$DIR_LOCAL_BIN/bat"
+                fi
+            fi
+            rm -rf "$temp_dir"
+        fi
+    fi
+
+    if [ -f "$DIR_LOCAL_BIN/bat" ]; then
+        chmod +x "$DIR_LOCAL_BIN/bat"
+        log_sucesso "Bat instalado com sucesso em $DIR_LOCAL_BIN/bat!"
+    else
+        log_aviso "Não foi possível baixar o Bat automaticamente."
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 11. Eza (Listagem de Pastas com Suporte a Git e Árvore em Rust)
+# ------------------------------------------------------------------------------
+instalar_eza() {
+    log_secao "11. Eza (Substituto Moderno do 'ls' em Rust com Git)"
+
+    mkdir -p "$DIR_LOCAL_BIN"
+
+    if command -v eza >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/eza" ]; then
+        log_pulado "Eza já está instalado em $DIR_LOCAL_BIN/eza"
+        return
+    fi
+
+    log_info "Instalando Eza (listagem rápida com ícones e status de Git)..."
+    local arch
+    arch="$(uname -m)"
+    local eza_arch=""
+    case "$arch" in
+        x86_64) eza_arch="x86_64-unknown-linux-gnu" ;;
+        aarch64|arm64) eza_arch="aarch64-unknown-linux-gnu" ;;
+        *) eza_arch="" ;;
+    esac
+
+    if [ -n "$eza_arch" ]; then
+        local latest_tag
+        latest_tag=$(curl -s "https://api.github.com/repos/eza-community/eza/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$latest_tag" ]; then
+            local tar_file="eza_${eza_arch}.tar.gz"
+            local download_url="https://github.com/eza-community/eza/releases/download/${latest_tag}/${tar_file}"
+            local temp_dir
+            temp_dir=$(mktemp -d)
+            if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
+                tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" 2>/dev/null || true
+                local bin_found
+                bin_found=$(find "$temp_dir" -type f -name "eza" | head -n 1)
+                if [ -n "$bin_found" ] && [ -f "$bin_found" ]; then
+                    mv "$bin_found" "$DIR_LOCAL_BIN/eza"
+                    chmod +x "$DIR_LOCAL_BIN/eza"
+                fi
+            fi
+            rm -rf "$temp_dir"
+        fi
+    fi
+
+    if [ -f "$DIR_LOCAL_BIN/eza" ]; then
+        chmod +x "$DIR_LOCAL_BIN/eza"
+        log_sucesso "Eza instalado com sucesso em $DIR_LOCAL_BIN/eza!"
+    else
+        log_aviso "Não foi possível baixar o Eza automaticamente."
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # 8. Configuração Guiada do Git & GitHub
 # ------------------------------------------------------------------------------
 configurar_git() {
@@ -510,13 +722,29 @@ if [ -d "$HOME/.local/bin" ] && [ -f "$HOME/.local/bin/uv" ]; then
     eval "$(uv generate-shell-completion bash 2>/dev/null)"
 fi
 
+# Zoxide (Navegação Inteligente entre Diretórios - comando 'z')
+if command -v zoxide >/dev/null 2>&1 || [ -f "$HOME/.local/bin/zoxide" ]; then
+    eval "$(zoxide init bash)"
+fi
+
 # Starship Prompt
 if command -v starship >/dev/null 2>&1; then
     eval "$(starship init bash)"
 fi
 
+# Aliases de Navegação e Arquivos (Eza / Bat)
+if command -v eza >/dev/null 2>&1 || [ -f "$HOME/.local/bin/eza" ]; then
+    alias ll='eza -la --icons --git --group-directories-first 2>/dev/null || ls -lah --color=auto'
+    alias tree='eza --tree --icons 2>/dev/null || tree'
+else
+    alias ll='ls -lah --color=auto'
+fi
+
+if command -v bat >/dev/null 2>&1 || [ -f "$HOME/.local/bin/bat" ]; then
+    alias bat='bat 2>/dev/null || batcat'
+fi
+
 # Aliases úteis para o dia a dia
-alias ll='ls -lah --color=auto'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ports='netstat -tulanp 2>/dev/null || ss -tulanp'
@@ -537,8 +765,9 @@ alias novo='novo-projeto'
 alias novo-astro='pnpm create astro@latest'
 alias novo-python='novo-projeto'
 
-# Docker Visual (Lazydocker)
+# Ferramentas Visuais de Terminal (Lazydocker & Lazygit)
 alias ld='lazydocker'
+alias lg='lazygit'
 # <<< meu-setup <<<
 EOF
 
@@ -582,13 +811,21 @@ mostrar_conclusao() {
     echo -e "     ${YELLOW}(Se quiser testar nesta mesma janela agora mesmo: ${CYAN}source ~/.bashrc${YELLOW})${NC}\n"
     echo -e "  2. Teste a saúde das ferramentas a qualquer momento:"
     echo -e "     ${CYAN}diagnostico${NC}  ${YELLOW}(ou 'doctor')${NC}\n"
-    echo -e "  3. Abra o gerenciador visual do Docker:"
+    echo -e "  3. Navegue rápido entre projetos com Zoxide:"
+    echo -e "     ${CYAN}z <pasta>${NC}    ${YELLOW}(ex: 'z meu' ou 'z setup' para pular direto)${NC}\n"
+    echo -e "  4. Abra o gerenciador visual do Git:"
+    echo -e "     ${CYAN}lg${NC}           ${YELLOW}(ou 'lazygit')${NC}\n"
+    echo -e "  5. Abra o gerenciador visual do Docker:"
     echo -e "     ${CYAN}ld${NC}           ${YELLOW}(ou 'lazydocker')${NC}\n"
-    echo -e "  4. Crie seu primeiro site ou automação:"
+    echo -e "  6. Liste pastas com ícones e status Git:"
+    echo -e "     ${CYAN}ll${NC}           ${YELLOW}(ou 'tree' para ver árvore de pastas)${NC}\n"
+    echo -e "  7. Visualize arquivos com cores e sintaxe:"
+    echo -e "     ${CYAN}bat <arquivo>${NC}\n"
+    echo -e "  8. Crie seu primeiro site ou automação:"
     echo -e "     ${CYAN}novo${NC}         ${YELLOW}(ou 'novo-astro', 'novo-python')${NC}\n"
-    echo -e "  5. Mantenha seu ambiente sempre novo:"
+    echo -e "  9. Mantenha seu ambiente sempre novo:"
     echo -e "     ${CYAN}atualizar${NC}\n"
-    echo -e "  6. Para abrir pastas no VS Code ou no Windows:"
+    echo -e "  10. Para abrir pastas no VS Code ou no Windows:"
     echo -e "     ${CYAN}code .${NC}        (abre no VS Code)"
     echo -e "     ${CYAN}open .${NC}        (abre a pasta atual no Explorer do Windows)\n"
 }
@@ -617,6 +854,10 @@ case "$modo_instalacao" in
         instalar_python_e_uv
         instalar_docker
         instalar_lazydocker
+        instalar_lazygit
+        instalar_zoxide
+        instalar_bat
+        instalar_eza
         configurar_git
         configurar_bashrc
         mostrar_conclusao
@@ -644,6 +885,18 @@ case "$modo_instalacao" in
 
         read -rp "Instalar Lazydocker (painel visual do Docker no terminal)? [S/n]: " r_lazy
         [[ "${r_lazy:-S}" =~ ^[Ss]$ ]] && instalar_lazydocker
+
+        read -rp "Instalar Lazygit (painel visual de Git no terminal)? [S/n]: " r_lg
+        [[ "${r_lg:-S}" =~ ^[Ss]$ ]] && instalar_lazygit
+
+        read -rp "Instalar Zoxide (navegação inteligente com comando 'z')? [S/n]: " r_zox
+        [[ "${r_zox:-S}" =~ ^[Ss]$ ]] && instalar_zoxide
+
+        read -rp "Instalar Bat (leitor de código colorido em Rust)? [S/n]: " r_bat
+        [[ "${r_bat:-S}" =~ ^[Ss]$ ]] && instalar_bat
+
+        read -rp "Instalar Eza (listagem moderna com ícones e status git em Rust)? [S/n]: " r_eza
+        [[ "${r_eza:-S}" =~ ^[Ss]$ ]] && instalar_eza
 
         read -rp "Configurar Git, branch 'main', global .gitignore e SSH? [S/n]: " r_git
         [[ "${r_git:-S}" =~ ^[Ss]$ ]] && configurar_git
