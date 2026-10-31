@@ -298,6 +298,13 @@ instalar_docker() {
         else
             log_info "Iniciando e habilitando serviço Docker no systemd..."
             sudo systemctl enable --now docker 2>/dev/null || true
+            # Aguarda a inicialização do socket do Docker (até 5 segundos)
+            for _ in {1..5}; do
+                if sudo docker info >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 1
+            done
             log_sucesso "Serviço Docker iniciado!"
         fi
     fi
@@ -570,8 +577,9 @@ mostrar_conclusao() {
     echo -e "${CYAN}   (Link simbólico mais recente:${NC} $LOG_LATEST)\n"
 
     echo -e "${YELLOW}Como começar agora mesmo:${NC}"
-    echo -e "  1. Recarregue seu terminal com:"
-    echo -e "     ${CYAN}source ~/.bashrc${NC}  ${YELLOW}(ou feche e abra o terminal para ativar o grupo docker)${NC}\n"
+    echo -e "  1. Feche e abra este terminal (ou abra uma nova aba):"
+    echo -e "     ${GREEN}Isso ativa o grupo Docker (para rodar sem sudo) e carrega todos os atalhos.${NC}"
+    echo -e "     ${YELLOW}(Se quiser testar nesta mesma janela agora mesmo: ${CYAN}source ~/.bashrc${YELLOW})${NC}\n"
     echo -e "  2. Teste a saúde das ferramentas a qualquer momento:"
     echo -e "     ${CYAN}diagnostico${NC}  ${YELLOW}(ou 'doctor')${NC}\n"
     echo -e "  3. Abra o gerenciador visual do Docker:"

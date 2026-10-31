@@ -169,8 +169,10 @@ if command -v docker >/dev/null 2>&1; then
         else
             log_info "Limpeza do Docker ignorada pelo usuário."
         fi
+    elif sudo docker info >/dev/null 2>&1 || (command -v systemctl >/dev/null 2>&1 && sudo systemctl is-active --quiet docker); then
+        log_aviso "Docker Engine está ativo no systemd, mas sua sessão atual ainda não carregou as permissões. Feche e reabra o terminal para usar sem sudo."
     else
-        log_aviso "Docker está instalado, mas o serviço não está ativo no momento (systemd)."
+        log_aviso "Docker está instalado, mas o serviço não está ativo no momento (systemd). Inicie com: sudo systemctl start docker"
     fi
 else
     log_info "Docker não instalado nesta máquina."

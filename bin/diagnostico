@@ -128,9 +128,12 @@ if command -v docker >/dev/null 2>&1; then
     if docker info >/dev/null 2>&1; then
         ((TOTAL_SUCESSOS++))
         imprimir_linha_tabela "Docker Engine" "${GREEN}✔ ATIVO${NC}" "v${DOCKER_VER} (${COMPOSE_STATUS})"
+    elif sudo docker info >/dev/null 2>&1 || (command -v systemctl >/dev/null 2>&1 && sudo systemctl is-active --quiet docker); then
+        ((TOTAL_AVISOS++))
+        imprimir_linha_tabela "Docker Engine" "${YELLOW}⚠ ATIVO (RELOG REQUERIDO)${NC}" "Ativo no systemd (reinicie terminal p/ usar sem sudo)"
     else
         ((TOTAL_AVISOS++))
-        imprimir_linha_tabela "Docker Engine" "${YELLOW}⚠ INATIVO${NC}" "Instalado, mas daemon parado"
+        imprimir_linha_tabela "Docker Engine" "${YELLOW}⚠ INATIVO${NC}" "Daemon parado (sudo systemctl start docker)"
     fi
 else
     ((TOTAL_FALHAS++))
@@ -139,12 +142,15 @@ fi
 
 # 7. Permissão de Grupo Docker
 ((TOTAL_VERIFICACOES++))
-if groups "$USER" | grep -q "\bdocker\b"; then
+if id -nG 2>/dev/null | grep -qw "docker"; then
     ((TOTAL_SUCESSOS++))
-    imprimir_linha_tabela "Grupo Docker ($USER)" "${GREEN}✔ CONFIGURADO${NC}" "Permissão para rodar sem sudo"
+    imprimir_linha_tabela "Grupo Docker ($USER)" "${GREEN}✔ ATIVO NA SESSÃO${NC}" "Permissão para rodar sem sudo pronta"
+elif groups "$USER" 2>/dev/null | grep -qw "docker"; then
+    ((TOTAL_AVISOS++))
+    imprimir_linha_tabela "Grupo Docker ($USER)" "${YELLOW}⚠ PENDENTE NA SESSÃO${NC}" "Cadastrado no grupo; feche e reabra o terminal"
 else
     ((TOTAL_AVISOS++))
-    imprimir_linha_tabela "Grupo Docker ($USER)" "${YELLOW}⚠ PENDENTE${NC}" "Requer: sudo usermod -aG docker $USER"
+    imprimir_linha_tabela "Grupo Docker ($USER)" "${YELLOW}⚠ NÃO CONFIGURADO${NC}" "Requer: sudo usermod -aG docker $USER"
 fi
 
 # 8. Lazydocker (Docker Visual)
