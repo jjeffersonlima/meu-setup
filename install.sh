@@ -536,7 +536,7 @@ mostrar_conclusao() {
 
     echo -e "${YELLOW}Como começar agora mesmo:${NC}"
     echo -e "  1. Recarregue seu terminal com:"
-    echo -e "     ${CYAN}source ~/.bashrc${NC}\n"
+    echo -e "     ${CYAN}source ~/.bashrc${NC}  ${YELLOW}(ou feche e abra o terminal para ativar o grupo docker)${NC}\n"
     echo -e "  2. Abra o gerenciador visual do Docker:"
     echo -e "     ${CYAN}ld${NC}   ${YELLOW}(ou 'lazydocker')${NC}\n"
     echo -e "  3. Crie seu primeiro site ou automação:"
