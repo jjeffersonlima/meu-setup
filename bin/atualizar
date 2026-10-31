@@ -265,16 +265,25 @@ if [ -d "$DIR_SETUP/.git" ]; then
     [ -f "$DIR_SETUP/bin/novo-projeto" ] && ln -sf "$DIR_SETUP/bin/novo-projeto" "$DIR_LOCAL_BIN/novo-projeto"
     [ -f "$DIR_SETUP/bin/atualizar" ] && ln -sf "$DIR_SETUP/bin/atualizar" "$DIR_LOCAL_BIN/atualizar"
     [ -f "$DIR_SETUP/bin/diagnostico" ] && ln -sf "$DIR_SETUP/bin/diagnostico" "$DIR_LOCAL_BIN/diagnostico"
+    [ -f "$DIR_SETUP/bin/portainer" ] && ln -sf "$DIR_SETUP/bin/portainer" "$DIR_LOCAL_BIN/portainer"
     log_sucesso "Atalhos executáveis em $DIR_LOCAL_BIN/ sincronizados!"
 else
     log_info "Diretório $DIR_SETUP não é um repositório git. Etapa ignorada."
 fi
 
-# 7. Faxina Segura do Docker
-log_etapa "7/7" "Verificando status e manutenção do Docker..."
+# 7. Manutenção do Docker e Portainer
+log_etapa "7/7" "Verificando status e manutenção do Docker e Portainer..."
 if command -v docker >/dev/null 2>&1; then
     if docker info >/dev/null 2>&1; then
         echo -e "${CYAN}Docker Engine está ativo e respondendo.${NC}"
+
+        # Atualiza a imagem do Portainer se ela já estiver presente
+        if docker images --format '{{.Repository}}' 2>/dev/null | grep -Eq "portainer/portainer-ce"; then
+            log_info "Verificando atualização da imagem do Portainer CE..."
+            docker pull portainer/portainer-ce:latest >/dev/null 2>&1 || true
+            log_sucesso "Imagem do Portainer CE verificada e atualizada!"
+        fi
+
         read -rp "Deseja realizar uma faxina segura no Docker (remover containers parados, redes órfãs e imagens sem uso)? [s/N]: " resp_docker
         if [[ "$resp_docker" =~ ^[sS]$ ]]; then
             log_info "Executando docker system prune..."

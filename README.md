@@ -22,6 +22,7 @@
 | **Python & Automações** | **[uv (Astral)](https://docs.astral.sh/uv/)** | Gerenciador de Python e pacotes 10-100x mais rápido que pip/pyenv. Cria ambientes virtuais instantaneamente. |
 | **Containers & Bancos** | **Docker Engine + Compose** | Rodando nativamente com `systemd`, com permissão configurada para rodar sem `sudo`. |
 | **Docker Visual** | **[Lazydocker](https://github.com/jesseduffield/lazydocker) (`ld`)** | Interface TUI ultraleve no terminal com suporte a mouse, logs em tempo real e monitoramento de CPU/RAM. |
+| **Docker Web (Stacks)** | **[Portainer CE](https://www.portainer.io/)** | Painel web sob demanda em `http://localhost:9000` para subir e gerenciar Stacks completas. |
 | **Git Visual** | **[Lazygit](https://github.com/jesseduffield/lazygit) (`lg`)** | Interface visual no terminal para commits, diffs e push sem precisar memorizar comandos complexos. |
 | **Navegação Rápida** | **[Zoxide](https://github.com/ajeetdsouza/zoxide) (`z`)** | Navegação inteligente em Rust: pula para pastas de projetos digitando só parte do nome. |
 | **Leitura de Código** | **[Bat](https://github.com/sharkdp/bat)** | Substituto do `cat` em Rust com destaque de sintaxe colorida e números de linha. |
@@ -159,7 +160,33 @@ lazydocker
 
 ---
 
-### 6. Git Visual no Terminal com Lazygit (`lg`) 🌿
+### 6. Docker Web com Portainer CE (Sob Demanda) 🌐
+
+Se você prefere a praticidade de **subir Stacks colando arquivos Compose no navegador**, o setup inclui o **Portainer CE** configurado em modo **Sob Demanda** (zero consumo de memória em segundo plano quando não estiver em uso):
+
+```bash
+# Iniciar o Portainer e abrir no navegador do Windows automaticamente:
+portainer
+
+# Verificar status do Portainer e containers em execução:
+portainer status
+
+# Desligar o Portainer para liberar a memória RAM:
+portainer stop
+
+# Modo "Liberar Tudo": pausa o Portainer E todos os containers ativos (ideal antes de jogar):
+portainer stop-all
+```
+
+**Principais recursos:**
+- **URL Direta:** Abre em `http://localhost:9000` sem avisos de certificado SSL.
+- **Persistência Segura:** Utiliza o volume permanente `portainer_data` para guardar senhas e stacks para sempre.
+- **Sem Inicialização no Boot:** Criado com `--restart=no` para nunca ligar sozinho consumindo recursos do seu PC.
+- **Stop Geral (`portainer stop-all`):** Um comando único que pausa todos os containers ativos e devolve 100% da RAM e CPU ao Windows.
+
+---
+
+### 7. Git Visual no Terminal com Lazygit (`lg`) 🌿
 
 Assim como o Lazydocker cuida dos containers, o **Lazygit** permite gerenciar todo o fluxo do Git sem comandos complicados:
 
@@ -180,7 +207,7 @@ lazygit
 
 ---
 
-### 7. Navegação e Produtividade em Rust (`z`, `bat`, `ll`, `tree`) ⚡
+### 8. Navegação e Produtividade em Rust (`z`, `bat`, `ll`, `tree`) ⚡
 
 Ferramentas modernas escritas em Rust, que rodam instantaneamente com **zero consumo de memória em segundo plano**:
 
@@ -214,7 +241,7 @@ tree
 
 ---
 
-### 8. Manutenção & Atualização Contínua (`atualizar`) 🔄
+### 9. Manutenção & Atualização Contínua (`atualizar`) 🔄
 
 Para manter todo o seu ecossistema de desenvolvimento sempre rápido, seguro e sem arquivos órfãos ocupando espaço no WSL, basta rodar um único comando:
 
@@ -229,12 +256,13 @@ atualizar
 4. Atualiza o gerenciador Node `pnpm` globalmente.
 5. Atualiza o **Lazydocker**, **Lazygit**, **Zoxide**, **Bat**, **Eza** e verifica o **Starship**.
 6. Executa `git pull` no seu repositório `meu-setup` para puxar novos utilitários e atualizações.
-7. Pergunta de forma segura se você deseja fazer uma faxina no Docker (`docker system prune`).
-8. Mostra um relatório final com o espaço em disco liberado.
+7. Atualiza a imagem do **Portainer CE** caso esteja presente.
+8. Pergunta de forma segura se você deseja fazer uma faxina no Docker (`docker system prune`).
+9. Mostra um relatório final com o espaço em disco liberado.
 
 ---
 
-### 9. Diagnóstico de Saúde & Auditoria (`diagnostico` ou `doctor`) 🩺
+### 10. Diagnóstico de Saúde & Auditoria (`diagnostico` ou `doctor`) 🩺
 
 Para garantir total transparência e nunca ficar em dúvida se alguma ferramenta falhou ao instalar ou parou de funcionar, o setup inclui um sistema de diagnóstico completo:
 
@@ -253,6 +281,7 @@ doctor
 - **Docker Engine & Daemon:** Testa se o Docker está instalado, se o Compose v2 funciona e se o daemon está respondendo.
 - **Permissões de Usuário:** Verifica se seu usuário está no grupo `docker` para rodar sem `sudo`.
 - **Lazydocker & Lazygit:** Confirma a prontidão dos painéis visuais de terminal.
+- **Portainer CE (Web):** Verifica se o gerenciador web sob demanda está disponível ou ativo.
 - **Zoxide, Bat & Eza:** Valida os utilitários de alta performance em Rust.
 - **Git & Chave SSH:** Verifica identidade global e presença de chave Ed25519.
 - **Symlinks Locais:** Garante que todos os executáveis estão linkados em `~/.local/bin/`.
@@ -267,14 +296,18 @@ Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final 
 
 ---
 
-### 10. Atalhos Úteis no Terminal
+### 11. Atalhos Úteis no Terminal
 
 | Atalho | O que faz |
 | :--- | :--- |
+| `portainer` | Inicia o Portainer CE e abre a interface web em `http://localhost:9000` |
+| `portainer stop` | Desliga o Portainer e libera a memória RAM |
+| `portainer stop-all`| Pausa **todos os containers ativos** para devolver 100% da RAM/CPU ao Windows |
+| `portainer status` | Exibe o estado do Portainer e containers em execução |
+| `ld` | Abre o painel visual do Docker (**Lazydocker**) no terminal |
+| `lg` | Abre o painel visual do Git (**Lazygit**) no terminal |
 | `z <pasta>` | Pula direto para uma pasta de projeto aprendida (ex: `z setup`, `z astro`) |
 | `zi` | Abre a busca interativa de pastas com setas de teclado do Zoxide |
-| `lg` | Abre o painel visual do Git (**Lazygit**) no terminal |
-| `ld` | Abre o painel visual do Docker (**Lazydocker**) no terminal |
 | `bat <arquivo>`| Exibe arquivos de código ou texto com destaque de sintaxe e paginação |
 | `ll` | Listagem moderna de arquivos com status do Git e ícones (**Eza**) |
 | `tree` | Visualiza árvore de pastas e arquivos no terminal |
@@ -288,7 +321,7 @@ Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final 
 
 ---
 
-### 11. Dicas Úteis do WSL
+### 12. Dicas Úteis do WSL
 
 - **Acessar arquivos do Windows no WSL:** Estão localizados em `/mnt/c/Users/SeuUsuario/`.
 - **Melhor desempenho de disco:** Mantenha sempre seus projetos dentro da home do Linux (ex: `~/projetos/`), e **não** dentro de `/mnt/c/`. O sistema de arquivos nativo do Linux no WSL é até 10x mais rápido!

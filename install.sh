@@ -580,6 +580,31 @@ instalar_eza() {
 }
 
 # ------------------------------------------------------------------------------
+# 12. Portainer CE (Interface Web para Stacks Sob Demanda)
+# ------------------------------------------------------------------------------
+preparar_portainer() {
+    log_secao "12. Portainer CE (Interface Web para Stacks Sob Demanda)"
+
+    mkdir -p "$DIR_LOCAL_BIN"
+    if [ -f "$DIR_SETUP/bin/portainer" ]; then
+        ln -sf "$DIR_SETUP/bin/portainer" "$DIR_LOCAL_BIN/portainer"
+        chmod +x "$DIR_SETUP/bin/portainer"
+        log_sucesso "Utilitário 'portainer' conectado em $DIR_LOCAL_BIN/portainer"
+    fi
+
+    if docker images --format '{{.Repository}}' 2>/dev/null | grep -Eq "portainer/portainer-ce"; then
+        log_pulado "Imagem oficial do Portainer CE já está baixada."
+    else
+        log_info "Baixando imagem oficial do Portainer CE para abertura instantânea..."
+        if docker pull portainer/portainer-ce:latest >/dev/null 2>&1 || sudo docker pull portainer/portainer-ce:latest >/dev/null 2>&1; then
+            log_sucesso "Imagem oficial do Portainer CE baixada com sucesso!"
+        else
+            log_aviso "Download do Portainer pendente (será baixado no primeiro uso de 'portainer')."
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # 8. Configuração Guiada do Git & GitHub
 # ------------------------------------------------------------------------------
 configurar_git() {
@@ -693,6 +718,12 @@ configurar_bashrc() {
         log_sucesso "Utilitário 'diagnostico' conectado via symlink em $DIR_LOCAL_BIN/diagnostico"
     fi
 
+    if [ -f "$DIR_SETUP/bin/portainer" ]; then
+        ln -sf "$DIR_SETUP/bin/portainer" "$DIR_LOCAL_BIN/portainer"
+        chmod +x "$DIR_SETUP/bin/portainer"
+        log_sucesso "Utilitário 'portainer' conectado via symlink em $DIR_LOCAL_BIN/portainer"
+    fi
+
     # Garante backup do ~/.bashrc
     local timestamp
     timestamp=$(date +%Y%m%d_%H%M%S)
@@ -768,6 +799,9 @@ alias novo-python='novo-projeto'
 # Ferramentas Visuais de Terminal (Lazydocker & Lazygit)
 alias ld='lazydocker'
 alias lg='lazygit'
+
+# Portainer CE Sob Demanda (Web na porta 9000)
+alias portainer='portainer'
 # <<< meu-setup <<<
 EOF
 
@@ -815,17 +849,19 @@ mostrar_conclusao() {
     echo -e "     ${CYAN}z <pasta>${NC}    ${YELLOW}(ex: 'z meu' ou 'z setup' para pular direto)${NC}\n"
     echo -e "  4. Abra o gerenciador visual do Git:"
     echo -e "     ${CYAN}lg${NC}           ${YELLOW}(ou 'lazygit')${NC}\n"
-    echo -e "  5. Abra o gerenciador visual do Docker:"
+    echo -e "  5. Abra o painel do Docker no terminal:"
     echo -e "     ${CYAN}ld${NC}           ${YELLOW}(ou 'lazydocker')${NC}\n"
-    echo -e "  6. Liste pastas com ícones e status Git:"
+    echo -e "  6. Suba Stacks completas no Navegador Web:"
+    echo -e "     ${CYAN}portainer${NC}    ${YELLOW}(liga http://localhost:9000 e 'portainer stop' desliga)${NC}\n"
+    echo -e "  7. Liste pastas com ícones e status Git:"
     echo -e "     ${CYAN}ll${NC}           ${YELLOW}(ou 'tree' para ver árvore de pastas)${NC}\n"
-    echo -e "  7. Visualize arquivos com cores e sintaxe:"
+    echo -e "  8. Visualize arquivos com cores e sintaxe:"
     echo -e "     ${CYAN}bat <arquivo>${NC}\n"
-    echo -e "  8. Crie seu primeiro site ou automação:"
+    echo -e "  9. Crie seu primeiro site ou automação:"
     echo -e "     ${CYAN}novo${NC}         ${YELLOW}(ou 'novo-astro', 'novo-python')${NC}\n"
-    echo -e "  9. Mantenha seu ambiente sempre novo:"
+    echo -e "  10. Mantenha seu ambiente sempre novo:"
     echo -e "     ${CYAN}atualizar${NC}\n"
-    echo -e "  10. Para abrir pastas no VS Code ou no Windows:"
+    echo -e "  11. Para abrir pastas no VS Code ou no Windows:"
     echo -e "     ${CYAN}code .${NC}        (abre no VS Code)"
     echo -e "     ${CYAN}open .${NC}        (abre a pasta atual no Explorer do Windows)\n"
 }
@@ -854,6 +890,7 @@ case "$modo_instalacao" in
         instalar_python_e_uv
         instalar_docker
         instalar_lazydocker
+        preparar_portainer
         instalar_lazygit
         instalar_zoxide
         instalar_bat
@@ -885,6 +922,9 @@ case "$modo_instalacao" in
 
         read -rp "Instalar Lazydocker (painel visual do Docker no terminal)? [S/n]: " r_lazy
         [[ "${r_lazy:-S}" =~ ^[Ss]$ ]] && instalar_lazydocker
+
+        read -rp "Configurar Portainer CE Sob Demanda (painel web de Stacks na porta 9000)? [S/n]: " r_port
+        [[ "${r_port:-S}" =~ ^[Ss]$ ]] && preparar_portainer
 
         read -rp "Instalar Lazygit (painel visual de Git no terminal)? [S/n]: " r_lg
         [[ "${r_lg:-S}" =~ ^[Ss]$ ]] && instalar_lazygit

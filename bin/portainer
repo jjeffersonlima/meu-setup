@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# meu-setup: portainer
+# Gerenciador Sob Demanda do Portainer CE para WSL.
+# Permite ligar a interface web para subir Stacks e desligar tudo para liberar RAM.
+# ==============================================================================
+
+set -euo pipefail
+
+# Cores para o terminal
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+NOME_CONTAINER="portainer"
+NOME_VOLUME="portainer_data"
+IMAGEM_PORTAINER="portainer/portainer-ce:latest"
+PORTA_HTTP="9000"
+PORTA_HTTPS="9443"
+URL_PORTAINER="http://localhost:${PORTA_HTTP}"
+
+mostrar_banner() {
+    echo -e "${CYAN}"
+    echo "  ╔══════════════════════════════════════════════════╗"
+    echo "  ║          🐳  Portainer CE - Sob Demanda          ║"
+    echo "  ║                   meu-setup                      ║"
+    echo "  ╚══════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+garantir_docker() {
+    if ! command -v docker >/dev/null 2>&1; then
+        echo -e "${RED}Erro: Docker Engine não está instalado!${NC}"
+        echo -e "Execute o instalador do meu-setup: ./install.sh"
+        exit 1
+    fi
+
+    # Se o daemon não estiver respondendo, tenta iniciar via systemd
+    if ! docker info >/dev/null 2>&1; then
+        echo -e "${YELLOW}Iniciando o serviço do Docker Engine no systemd...${NC}"
+        sudo systemctl start docker 2>/dev/null || true
+        for _ in {1..5}; do
+            if docker info >/dev/null 2>&1 || sudo docker info >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+
+    if ! docker info >/dev/null 2>&1; then
+        echo -e "${RED}Erro: Não foi possível comunicar com o daemon do Docker.${NC}"
+        echo -e "Verifique o status com: ${CYAN}systemctl status docker${NC}"
+        exit 1
+    fi
+}
+
+abrir_navegador() {
+    local url="$1"
+    echo -e "${CYAN}Abrindo Portainer no navegador do Windows...${NC}"
+    if command -v cmd.exe >/dev/null 2>&1; then
+        cmd.exe /c start "$url" >/dev/null 2>&1 || true
+    elif command -v explorer.exe >/dev/null 2>&1; then
+        explorer.exe "$url" >/dev/null 2>&1 || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$url" >/dev/null 2>&1 || true
+    fi
+}
+
+iniciar_portainer() {
+    garantir_docker
+
+    echo -e "${BLUE}▶ Verificando status do container Portainer...${NC}"
+
+    # Garante o volume persistente para nunca perder senhas ou stacks
+    if ! docker volume inspect "$NOME_VOLUME" >/dev/null 2>&1; then
+        echo -e "${CYAN}Criando volume persistente de dados: ${BOLD}${NOME_VOLUME}${NC}..."
+        docker volume create "$NOME_VOLUME" >/dev/null
+    fi
+
+    # Verifica se já existe um container com esse nome
+    if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+        if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+            echo -e "${GREEN}✔ O Portainer já está em execução!${NC}"
+        else
+            echo -e "${YELLOW}Iniciando o container existente do Portainer...${NC}"
+            docker start "$NOME_CONTAINER" >/dev/null
+            echo -e "${GREEN}✔ Portainer iniciado com sucesso!${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Criando e subindo o container do Portainer...${NC}"
+        docker run -d \
+            -p "${PORTA_HTTP}:9000" \
+            -p "${PORTA_HTTPS}:9443" \
+            --name "$NOME_CONTAINER" \
+            --restart=no \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${NOME_VOLUME}:/data" \
+            "$IMAGEM_PORTAINER" >/dev/null
+        echo -e "${GREEN}✔ Container do Portainer criado e iniciado!${NC}"
+    fi
+
+    echo -e "\n${BOLD}${GREEN}🌐 Acesse o painel web em:${NC} ${CYAN}${URL_PORTAINER}${NC}"
+    echo -e "${YELLOW}💡 Dica de primeiro acesso:${NC} No primeiro login, defina sua senha de Administrador (mínimo 12 caracteres)."
+    echo -e "${YELLOW}💡 Para liberar RAM quando terminar:${NC} digite ${CYAN}portainer stop${NC} ou ${CYAN}portainer stop-all${NC}\n"
+
+    abrir_navegador "$URL_PORTAINER"
+}
+
+parar_portainer() {
+    garantir_docker
+
+    if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+        echo -e "${YELLOW}Parando o container do Portainer...${NC}"
+        docker stop "$NOME_CONTAINER" >/dev/null
+        echo -e "${GREEN}✔ Portainer pausado com sucesso!${NC}"
+        echo -e "${CYAN}Memória RAM do Portainer totalmente liberada para o sistema.${NC}"
+        echo -e "Seus dados, volumes e stacks continuam preservados no disco."
+    else
+        echo -e "${CYAN}O Portainer já está parado.${NC}"
+    fi
+}
+
+parar_todos_os_containers() {
+    garantir_docker
+
+    local containers_ativos
+    containers_ativos=$(docker ps -q)
+
+    if [ -n "$containers_ativos" ]; then
+        local total
+        total=$(echo "$containers_ativos" | wc -l)
+        echo -e "${YELLOW}Parando todos os $total container(s) em execução no Docker...${NC}"
+        # shellcheck disable=SC2086
+        docker stop $containers_ativos >/dev/null
+        echo -e "${GREEN}${BOLD}✔ Todos os containers foram pausados com sucesso!${NC}"
+        echo -e "${CYAN}100% da memória RAM e núcleos de CPU foram devolvidos ao seu computador.${NC}"
+    else
+        echo -e "${GREEN}✔ Nenhum container estava em execução. Recursos já estavam 100% livres!${NC}"
+    fi
+}
+
+mostrar_status() {
+    garantir_docker
+
+    echo -e "${BOLD}Status do Portainer:${NC}"
+    if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+        echo -e "  Estado: ${GREEN}✔ ATIVO${NC} em ${CYAN}${URL_PORTAINER}${NC}"
+    elif docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+        echo -e "  Estado: ${YELLOW}⏸ PARADO${NC} (Sob Demanda - digite 'portainer' para ativar)"
+    else
+        echo -e "  Estado: ${CYAN}⚪ NÃO CRIADO${NC} (Digite 'portainer' para inicializar)"
+    fi
+
+    echo -e "\n${BOLD}Containers Ativos no Momento:${NC}"
+    local ativos
+    ativos=$(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
+    if [ "$(echo "$ativos" | wc -l)" -gt 1 ]; then
+        echo "$ativos" | sed 's/^/  /'
+    else
+        echo -e "  ${GREEN}Nenhum container ativo. Consumo de RAM: 0 MB.${NC}"
+    fi
+    echo ""
+}
+
+mostrar_logs() {
+    garantir_docker
+    if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+        echo -e "${CYAN}Acompanhando logs do Portainer (Ctrl+C para sair)...${NC}\n"
+        docker logs -f "$NOME_CONTAINER"
+    else
+        echo -e "${YELLOW}Container do Portainer ainda não foi criado.${NC}"
+    fi
+}
+
+mostrar_ajuda() {
+    mostrar_banner
+    echo -e "Uso: ${BOLD}portainer${NC} [comando]\n"
+    echo -e "Comandos disponíveis:"
+    echo -e "  ${CYAN}portainer${NC} (ou ${CYAN}start${NC}, ${CYAN}on${NC})    Inicia o Portainer e abre no navegador (http://localhost:9000)"
+    echo -e "  ${CYAN}portainer stop${NC} (ou ${CYAN}off${NC})       Desliga o Portainer e libera a memória RAM"
+    echo -e "  ${CYAN}portainer stop-all${NC}           Pausa ${BOLD}TODOS${NC} os containers ativos para liberar 100% da RAM"
+    echo -e "  ${CYAN}portainer status${NC}             Exibe o estado do Portainer e outros containers ativos"
+    echo -e "  ${CYAN}portainer logs${NC}               Exibe os logs do Portainer em tempo real"
+    echo -e "  ${CYAN}portainer help${NC}               Exibe este menu de ajuda\n"
+}
+
+# Subcomandos
+acao="${1:-start}"
+
+case "$acao" in
+    start|on|up)
+        mostrar_banner
+        iniciar_portainer
+        ;;
+    stop|off|down)
+        mostrar_banner
+        parar_portainer
+        ;;
+    stop-all|stopall|down-all|kill-all)
+        mostrar_banner
+        parar_todos_os_containers
+        ;;
+    status)
+        mostrar_banner
+        mostrar_status
+        ;;
+    logs)
+        mostrar_logs
+        ;;
+    help|--help|-h)
+        mostrar_ajuda
+        ;;
+    *)
+        echo -e "${RED}Comando desconhecido: '$acao'${NC}\n"
+        mostrar_ajuda
+        exit 1
+        ;;
+esac

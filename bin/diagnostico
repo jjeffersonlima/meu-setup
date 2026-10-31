@@ -208,7 +208,28 @@ else
     imprimir_linha_tabela "Eza (Listagem ll)" "${RED}✖ NÃO INSTALADO${NC}" "eza ausente em ~/.local/bin"
 fi
 
-# 13. Git & Identidade & Chave SSH
+# 13. Portainer CE (Docker Web Sob Demanda)
+((TOTAL_VERIFICACOES++))
+if [ -f "$HOME/.local/bin/portainer" ] || command -v portainer >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq "^portainer$"; then
+        ((TOTAL_SUCESSOS++))
+        imprimir_linha_tabela "Portainer CE (Web)" "${GREEN}✔ ATIVO${NC}" "http://localhost:9000"
+    elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Eq "^portainer$"; then
+        ((TOTAL_SUCESSOS++))
+        imprimir_linha_tabela "Portainer CE (Web)" "${GREEN}✔ SOB DEMANDA${NC}" "Parado (0 MB RAM) - rode 'portainer'"
+    elif docker images --format '{{.Repository}}' 2>/dev/null | grep -Eq "portainer/portainer-ce"; then
+        ((TOTAL_SUCESSOS++))
+        imprimir_linha_tabela "Portainer CE (Web)" "${GREEN}✔ PRONTO${NC}" "Imagem pronta - rode 'portainer'"
+    else
+        ((TOTAL_AVISOS++))
+        imprimir_linha_tabela "Portainer CE (Web)" "${YELLOW}⚠ DISPONÍVEL${NC}" "Script pronto (baixa ao rodar 'portainer')"
+    fi
+else
+    ((TOTAL_FALHAS++))
+    imprimir_linha_tabela "Portainer CE (Web)" "${RED}✖ NÃO INSTALADO${NC}" "portainer ausente em ~/.local/bin"
+fi
+
+# 14. Git & Identidade & Chave SSH
 ((TOTAL_VERIFICACOES++))
 GIT_NAME=$(git config --global user.name || true)
 GIT_EMAIL=$(git config --global user.email || true)
@@ -222,11 +243,11 @@ else
     imprimir_linha_tabela "Git & Identidade" "${YELLOW}⚠ PARCIAL${NC}" "Nome ou e-mail git não configurados"
 fi
 
-# 14. Utilitários locais e Aliases (~/.bashrc)
+# 15. Utilitários locais e Aliases (~/.bashrc)
 ((TOTAL_VERIFICACOES++))
-if [ -L "$HOME/.local/bin/novo-projeto" ] && [ -L "$HOME/.local/bin/atualizar" ]; then
+if [ -L "$HOME/.local/bin/novo-projeto" ] && [ -L "$HOME/.local/bin/atualizar" ] && [ -L "$HOME/.local/bin/portainer" ]; then
     ((TOTAL_SUCESSOS++))
-    imprimir_linha_tabela "Utilitários meu-setup" "${GREEN}✔ SUCESSO${NC}" "Symlinks ativos (novo, atualizar)"
+    imprimir_linha_tabela "Utilitários meu-setup" "${GREEN}✔ SUCESSO${NC}" "Symlinks ativos (novo, atualizar, portainer)"
 elif [ -f "$HOME/.local/bin/novo-projeto" ]; then
     ((TOTAL_AVISOS++))
     imprimir_linha_tabela "Utilitários meu-setup" "${YELLOW}⚠ CÓPIA DIRETA${NC}" "Scripts presentes sem symlinks"
