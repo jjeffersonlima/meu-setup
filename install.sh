@@ -286,10 +286,67 @@ instalar_docker() {
 }
 
 # ------------------------------------------------------------------------------
-# 7. Configuração Guiada do Git & GitHub
+# 7. Lazydocker (Docker Visual no Terminal)
+# ------------------------------------------------------------------------------
+instalar_lazydocker() {
+    log_secao "7. Lazydocker (Interface Visual Leve para Docker)"
+
+    mkdir -p "$DIR_LOCAL_BIN"
+
+    if command -v lazydocker >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazydocker" ]; then
+        log_pulado "Lazydocker já está instalado em $DIR_LOCAL_BIN/lazydocker"
+        return
+    fi
+
+    log_info "Instalando Lazydocker (painel visual do Docker no terminal)..."
+    local arch
+    arch="$(uname -m)"
+    local lazy_arch=""
+    case "$arch" in
+        x86_64) lazy_arch="x86_64" ;;
+        aarch64|arm64) lazy_arch="arm64" ;;
+        *) lazy_arch="" ;;
+    esac
+
+    if [ -z "$lazy_arch" ]; then
+        log_aviso "Arquitetura '$arch' não suportada automaticamente para Lazydocker. Pulando."
+        return
+    fi
+
+    local latest_tag
+    latest_tag=$(curl -s "https://api.github.com/repos/jesseduffield/lazydocker/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+
+    if [ -z "$latest_tag" ]; then
+        log_info "Tentando instalação via script oficial do Lazydocker..."
+        curl https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | DIR="$DIR_LOCAL_BIN" bash 2>/dev/null || true
+    else
+        local tar_file="lazydocker_${latest_tag#v}_Linux_${lazy_arch}.tar.gz"
+        local download_url="https://github.com/jesseduffield/lazydocker/releases/download/${latest_tag}/${tar_file}"
+        local temp_dir
+        temp_dir=$(mktemp -d)
+        if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
+            tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" lazydocker 2>/dev/null || true
+            if [ -f "$temp_dir/lazydocker" ]; then
+                mv "$temp_dir/lazydocker" "$DIR_LOCAL_BIN/lazydocker"
+                chmod +x "$DIR_LOCAL_BIN/lazydocker"
+            fi
+        fi
+        rm -rf "$temp_dir"
+    fi
+
+    if [ -f "$DIR_LOCAL_BIN/lazydocker" ]; then
+        chmod +x "$DIR_LOCAL_BIN/lazydocker"
+        log_sucesso "Lazydocker instalado com sucesso em $DIR_LOCAL_BIN/lazydocker!"
+    else
+        log_aviso "Não foi possível baixar o Lazydocker automaticamente."
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 8. Configuração Guiada do Git & GitHub
 # ------------------------------------------------------------------------------
 configurar_git() {
-    log_secao "7. Configuração do Git e GitHub"
+    log_secao "8. Configuração do Git e GitHub"
 
     # Nome e Email
     local current_name
@@ -373,16 +430,24 @@ configurar_git() {
 }
 
 # ------------------------------------------------------------------------------
-# 8. Aliases, Variáveis de Ambiente e ~/.bashrc
+# 9. Aliases, Variáveis de Ambiente e ~/.bashrc
 # ------------------------------------------------------------------------------
 configurar_bashrc() {
-    log_secao "8. Configuração de Aliases e Ambiente (~/.bashrc)"
+    log_secao "9. Configuração de Aliases e Ambiente (~/.bashrc)"
 
-    # Instala o utilitário novo-projeto em ~/.local/bin/
+    mkdir -p "$DIR_LOCAL_BIN"
+
+    # Conecta os utilitários do meu-setup em ~/.local/bin/ via Links Simbólicos (Symlinks)
     if [ -f "$DIR_SETUP/bin/novo-projeto" ]; then
-        cp "$DIR_SETUP/bin/novo-projeto" "$DIR_LOCAL_BIN/novo-projeto"
-        chmod +x "$DIR_LOCAL_BIN/novo-projeto"
-        log_sucesso "Utilitário 'novo-projeto' instalado em $DIR_LOCAL_BIN/novo-projeto"
+        ln -sf "$DIR_SETUP/bin/novo-projeto" "$DIR_LOCAL_BIN/novo-projeto"
+        chmod +x "$DIR_SETUP/bin/novo-projeto"
+        log_sucesso "Utilitário 'novo-projeto' conectado via symlink em $DIR_LOCAL_BIN/novo-projeto"
+    fi
+
+    if [ -f "$DIR_SETUP/bin/atualizar" ]; then
+        ln -sf "$DIR_SETUP/bin/atualizar" "$DIR_LOCAL_BIN/atualizar"
+        chmod +x "$DIR_SETUP/bin/atualizar"
+        log_sucesso "Utilitário 'atualizar' conectado via symlink em $DIR_LOCAL_BIN/atualizar"
     fi
 
     # Garante backup do ~/.bashrc
@@ -423,16 +488,22 @@ fi
 alias ll='ls -lah --color=auto'
 alias ..='cd ..'
 alias ...='cd ../..'
-alias update='sudo apt update && sudo apt upgrade -y'
 alias ports='netstat -tulanp 2>/dev/null || ss -tulanp'
 alias myip='hostname -I | awk "{print \$1}"'
 alias open='explorer.exe 2>/dev/null || xdg-open'
 alias code='code 2>/dev/null || true'
 
-# Aliases para projetos e sites
+# Manutenção e Atualização Contínua
+alias atualizar='atualizar'
+alias update='atualizar'
+
+# Utilitários de Projetos e Sites
 alias novo='novo-projeto'
 alias novo-astro='pnpm create astro@latest'
 alias novo-python='novo-projeto'
+
+# Docker Visual (Lazydocker)
+alias ld='lazydocker'
 # <<< meu-setup <<<
 EOF
 
@@ -451,16 +522,21 @@ mostrar_conclusao() {
     echo -e "  ${GREEN}✔${NC} ${BOLD}Starship Prompt:${NC} Prompt bonito e ágil com status de git, node e python."
     echo -e "  ${GREEN}✔${NC} ${BOLD}Node.js & pnpm:${NC} Gerenciado por fnm, pronto para desenvolver sites com Astro."
     echo -e "  ${GREEN}✔${NC} ${BOLD}Python & uv:${NC} O ambiente mais rápido para automações, APIs e scripts."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Docker Engine:${NC} Containers e bancos de dados nativos via systemd."
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Docker Engine & Lazydocker:${NC} Containers nativos + painel visual rápido (digite ${CYAN}ld${NC})."
     echo -e "  ${GREEN}✔${NC} ${BOLD}Git & GitHub:${NC} Chave SSH, branch 'main' e .gitignore global pré-configurado."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Comando 'novo':${NC} Execute ${CYAN}novo${NC} no terminal para iniciar qualquer projeto!\n"
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Comando 'novo':${NC} Execute ${CYAN}novo${NC} no terminal para iniciar qualquer projeto!"
+    echo -e "  ${GREEN}✔${NC} ${BOLD}Comando 'atualizar':${NC} Mantenha todo o seu sistema e repo em dia digitando ${CYAN}atualizar${NC}.\n"
 
     echo -e "${YELLOW}Como começar agora mesmo:${NC}"
     echo -e "  1. Recarregue seu terminal com:"
     echo -e "     ${CYAN}source ~/.bashrc${NC}\n"
-    echo -e "  2. Crie seu primeiro site ou automação:"
+    echo -e "  2. Abra o gerenciador visual do Docker:"
+    echo -e "     ${CYAN}ld${NC}   ${YELLOW}(ou 'lazydocker')${NC}\n"
+    echo -e "  3. Crie seu primeiro site ou automação:"
     echo -e "     ${CYAN}novo${NC}  ${YELLOW}(ou 'novo-astro', 'novo-python')${NC}\n"
-    echo -e "  3. Para abrir pastas no VS Code ou no Windows:"
+    echo -e "  4. Mantenha seu ambiente sempre novo:"
+    echo -e "     ${CYAN}atualizar${NC}\n"
+    echo -e "  5. Para abrir pastas no VS Code ou no Windows:"
     echo -e "     ${CYAN}code .${NC}     (abre no VS Code)"
     echo -e "     ${CYAN}open .${NC}     (abre a pasta atual no Explorer do Windows)\n"
 }
@@ -488,6 +564,7 @@ case "$modo_instalacao" in
         instalar_node_e_astro
         instalar_python_e_uv
         instalar_docker
+        instalar_lazydocker
         configurar_git
         configurar_bashrc
         mostrar_conclusao
@@ -512,6 +589,9 @@ case "$modo_instalacao" in
 
         read -rp "Instalar Docker Engine nativo e Docker Compose? [S/n]: " r_dock
         [[ "${r_dock:-S}" =~ ^[Ss]$ ]] && instalar_docker
+
+        read -rp "Instalar Lazydocker (painel visual do Docker no terminal)? [S/n]: " r_lazy
+        [[ "${r_lazy:-S}" =~ ^[Ss]$ ]] && instalar_lazydocker
 
         read -rp "Configurar Git, branch 'main', global .gitignore e SSH? [S/n]: " r_git
         [[ "${r_git:-S}" =~ ^[Ss]$ ]] && configurar_git

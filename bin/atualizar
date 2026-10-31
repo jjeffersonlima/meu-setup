@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# meu-setup: atualizar
+# Script de manutenção e atualização contínua do ambiente de desenvolvimento.
+# ==============================================================================
+
+set -e
+
+# Cores para o terminal
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+mostrar_banner() {
+    echo -e "${CYAN}"
+    echo "  ╔══════════════════════════════════════════════════╗"
+    echo "  ║         🔄 Central de Atualização & Manutenção   ║"
+    echo "  ║                   meu-setup                      ║"
+    echo "  ╚══════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+log_etapa() {
+    echo -e "\n${BLUE}${BOLD}[$1] $2${NC}"
+}
+
+log_sucesso() {
+    echo -e "${GREEN}✔ $1${NC}"
+}
+
+log_info() {
+    echo -e "${CYAN}ℹ $1${NC}"
+}
+
+log_aviso() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+# Resolve diretório real caso seja executado através de symlink
+obter_diretorio_repo() {
+    local source="${BASH_SOURCE[0]}"
+    while [ -h "$source" ]; do
+        local dir
+        dir="$( cd -P "$( dirname "$source" )" >/dev/null 2>&1 && pwd )"
+        source="$(readlink "$source")"
+        [[ $source != /* ]] && source="$dir/$source"
+    done
+    local dir_bin
+    dir_bin="$( cd -P "$( dirname "$source" )" >/dev/null 2>&1 && pwd )"
+    echo "$( cd "$dir_bin/.." && pwd )"
+}
+
+mostrar_banner
+
+# Solicita sudo uma única vez no início
+echo -e "${YELLOW}Verificando permissões administrativas para atualizações do sistema...${NC}"
+sudo -v
+while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+SUDO_PID=$!
+trap 'kill $SUDO_PID 2>/dev/null || true' EXIT
+
+# 1. Sistema Operacional (Ubuntu/Debian)
+log_etapa "1/7" "Atualizando pacotes do sistema operacional Ubuntu (APT)..."
+sudo apt update
+sudo apt upgrade -y
+log_sucesso "Pacotes do sistema operacional atualizados!"
+
+# 2. Limpeza de pacotes órfãos e cache do APT
+log_etapa "2/7" "Limpando pacotes desnecessários e cache de disco do APT..."
+sudo apt autoremove -y
+sudo apt clean
+log_sucesso "Limpeza do APT concluída com sucesso!"
+
+# 3. Ecossistema Python (uv)
+log_etapa "3/7" "Verificando atualização do gerenciador Python (uv)..."
+if command -v uv >/dev/null 2>&1; then
+    uv self update 2>/dev/null || log_info "uv já está na versão mais recente."
+    log_sucesso "uv verificado: $(uv --version)"
+else
+    log_aviso "uv não encontrado. Instale com o instalador do meu-setup."
+fi
+
+# 4. Ecossistema Node.js (fnm / pnpm)
+log_etapa "4/7" "Verificando ferramentas do ecossistema Node.js & Web..."
+if command -v pnpm >/dev/null 2>&1; then
+    pnpm add -g pnpm 2>/dev/null || true
+    log_sucesso "pnpm verificado: v$(pnpm --version 2>/dev/null || echo 'instalado')"
+fi
+
+if command -v fnm >/dev/null 2>&1; then
+    log_sucesso "fnm verificado: $(fnm --version)"
+fi
+
+# 5. Lazydocker (Docker visual)
+log_etapa "5/7" "Verificando ferramentas visuais de terminal (Lazydocker & Starship)..."
+DIR_LOCAL_BIN="$HOME/.local/bin"
+mkdir -p "$DIR_LOCAL_BIN"
+
+if command -v lazydocker >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazydocker" ]; then
+    log_info "Atualizando Lazydocker para a versão mais recente..."
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+        x86_64) LAZY_ARCH="x86_64" ;;
+        aarch64|arm64) LAZY_ARCH="arm64" ;;
+        *) LAZY_ARCH="" ;;
+    esac
+
+    if [ -n "$LAZY_ARCH" ]; then
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/jesseduffield/lazydocker/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$LATEST_TAG" ]; then
+            TAR_FILE="lazydocker_${LATEST_TAG#v}_Linux_${LAZY_ARCH}.tar.gz"
+            DOWNLOAD_URL="https://github.com/jesseduffield/lazydocker/releases/download/${LATEST_TAG}/${TAR_FILE}"
+            TEMP_DIR=$(mktemp -d)
+            if curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/$TAR_FILE" 2>/dev/null; then
+                tar -xzf "$TEMP_DIR/$TAR_FILE" -C "$TEMP_DIR" lazydocker 2>/dev/null || true
+                if [ -f "$TEMP_DIR/lazydocker" ]; then
+                    mv "$TEMP_DIR/lazydocker" "$DIR_LOCAL_BIN/lazydocker"
+                    chmod +x "$DIR_LOCAL_BIN/lazydocker"
+                    log_sucesso "Lazydocker atualizado para $LATEST_TAG!"
+                fi
+            fi
+            rm -rf "$TEMP_DIR"
+        fi
+    fi
+else
+    log_info "Lazydocker não instalado. O instalador do meu-setup pode configurá-lo."
+fi
+
+if command -v starship >/dev/null 2>&1; then
+    log_sucesso "Starship verificado: $(starship --version | head -n 1)"
+fi
+
+# 6. Sincronização do repositório meu-setup
+log_etapa "6/7" "Sincronizando repositório meu-setup com o GitHub..."
+DIR_SETUP="$(obter_diretorio_repo)"
+if [ -d "$DIR_SETUP/.git" ]; then
+    log_info "Repositório detectado em: $DIR_SETUP"
+    CURRENT_BRANCH=$(git -C "$DIR_SETUP" branch --show-current 2>/dev/null || echo "main")
+    if git -C "$DIR_SETUP" pull origin "$CURRENT_BRANCH" 2>/dev/null; then
+        log_sucesso "Repositório meu-setup sincronizado com o GitHub na branch $CURRENT_BRANCH!"
+    else
+        log_aviso "Não foi possível puxar commits do GitHub (sem conexão ou alterações locais pendentes)."
+    fi
+
+    # Garante que os symlinks em ~/.local/bin estejam atualizados
+    mkdir -p "$DIR_LOCAL_BIN"
+    [ -f "$DIR_SETUP/bin/novo-projeto" ] && ln -sf "$DIR_SETUP/bin/novo-projeto" "$DIR_LOCAL_BIN/novo-projeto"
+    [ -f "$DIR_SETUP/bin/atualizar" ] && ln -sf "$DIR_SETUP/bin/atualizar" "$DIR_LOCAL_BIN/atualizar"
+    log_sucesso "Atalhos executáveis em $DIR_LOCAL_BIN/ sincronizados!"
+else
+    log_info "Diretório $DIR_SETUP não é um repositório git. Etapa ignorada."
+fi
+
+# 7. Faxina Segura do Docker
+log_etapa "7/7" "Verificando status e manutenção do Docker..."
+if command -v docker >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+        echo -e "${CYAN}Docker Engine está ativo e respondendo.${NC}"
+        read -rp "Deseja realizar uma faxina segura no Docker (remover containers parados, redes órfãs e imagens sem uso)? [s/N]: " resp_docker
+        if [[ "$resp_docker" =~ ^[sS]$ ]]; then
+            log_info "Executando docker system prune..."
+            docker system prune -f
+            log_sucesso "Faxina do Docker concluída!"
+        else
+            log_info "Limpeza do Docker ignorada pelo usuário."
+        fi
+    else
+        log_aviso "Docker está instalado, mas o serviço não está ativo no momento (systemd)."
+    fi
+else
+    log_info "Docker não instalado nesta máquina."
+fi
+
+# Resumo Final e Espaço em Disco
+echo -e "\n${GREEN}══════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}✔ Atualização completa concluída com sucesso!${NC}"
+echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"
+
+# Informação de espaço em disco no WSL
+ESPACO_DISCO=$(df -h / | awk 'NR==2 {print $4 " livres (usado: " $5 " de " $2 ")"}')
+echo -e "${CYAN}💾 Espaço em disco do WSL:${NC} $ESPACO_DISCO"
+echo -e "${CYAN}🚀 Seu ambiente está pronto e com as versões mais recentes!${NC}\n"

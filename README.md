@@ -21,9 +21,11 @@
 | **Node.js & Web** | **[fnm](https://github.com/Schniz/fnm) + [pnpm](https://pnpm.io/)** | Gerenciador de versões de Node.js ultra-rápido + pnpm (padrão oficial recomendado para **Astro**). |
 | **Python & Automações** | **[uv (Astral)](https://docs.astral.sh/uv/)** | Gerenciador de Python e pacotes 10-100x mais rápido que pip/pyenv. Cria ambientes virtuais instantaneamente. |
 | **Containers & Bancos** | **Docker Engine + Compose** | Rodando nativamente com `systemd`, com permissão configurada para rodar sem `sudo`. |
+| **Docker Visual** | **[Lazydocker](https://github.com/jesseduffield/lazydocker) (`ld`)** | Interface TUI ultraleve no terminal com suporte a mouse, logs em tempo real e monitoramento de CPU/RAM. |
 | **Controle de Versão** | **Git + GitHub CLI (`gh`)** | Branch padrão `main`, `.gitignore` global e geração opcional de chave SSH Ed25519. |
 | **CLI Essentials** | `curl`, `git`, `jq`, `fzf`, `ripgrep`, `build-essential` | Utilitários fundamentais para inspecionar APIs, buscar código e compilar pacotes. |
 | **Utilitário de Projetos**| **`novo-projeto`** (alias: `novo`) | Gerador interativo para criar novos sites em Astro, scripts de automação Python ou Docker Compose. |
+| **Manutenção Contínua** | **`atualizar`** (ou `update`) | Atualiza sistema, uv, pnpm, starship, o repositório meu-setup e faz faxina segura de disco. |
 
 ---
 
@@ -127,13 +129,59 @@ docker compose down     # Para os serviços
 
 ---
 
-### 5. Atalhos Úteis no Terminal
+### 5. Docker Visual no Terminal com Lazydocker (`ld`) 📊
+
+Chega de memorizar comandos longos do Docker ou esperar o Docker Desktop abrir no Windows. Com o **Lazydocker**, você tem uma interface visual completa diretamente no terminal:
+
+```bash
+# Abrir o painel visual
+ld
+# ou
+lazydocker
+```
+
+**Principais recursos:**
+- **Navegação com Mouse:** Você pode clicar nos containers, abas e botões diretamente na tela do terminal.
+- **Gráficos em Tempo Real:** Acompanhe o uso de CPU e Memória de cada container instantaneamente.
+- **Logs ao Vivo:** Selecione qualquer container para rolar pelos logs com as setas do teclado ou mouse.
+- **Ações Rápidas de Teclado:**
+  - `d` -> Parar/remover container ou serviço
+  - `s` -> Parar container
+  - `r` -> Reiniciar container
+  - `m` -> Ver logs completos
+  - `e` -> Abrir o shell interativo (`sh`/`bash`) dentro do container
+  - `q` -> Sair do Lazydocker
+
+---
+
+### 6. Manutenção & Atualização Contínua (`atualizar`) 🔄
+
+Para manter todo o seu ecossistema de desenvolvimento sempre rápido, seguro e sem arquivos órfãos ocupando espaço no WSL, basta rodar um único comando:
+
+```bash
+atualizar
+```
+
+**O que o comando faz automaticamente:**
+1. Atualiza e aplica patches no Ubuntu (`apt update && apt upgrade -y`).
+2. Remove pacotes órfãos e limpa o cache do APT (`autoremove` e `clean`) para economizar espaço de disco do WSL.
+3. Atualiza o gerenciador Python `uv` para a versão mais recente (`uv self update`).
+4. Atualiza o gerenciador Node `pnpm` globalmente.
+5. Atualiza o **Lazydocker** e verifica o **Starship**.
+6. Executa `git pull` no seu repositório `meu-setup` para puxar novos utilitários e atualizações.
+7. Pergunta de forma segura se você deseja fazer uma faxina no Docker (`docker system prune`).
+8. Mostra um relatório final com o espaço em disco liberado.
+
+---
+
+### 7. Atalhos Úteis no Terminal
 
 | Atalho | O que faz |
 | :--- | :--- |
 | `novo` | Abre o assistente interativo para criar novos projetos (Astro, Python, Node, Docker) |
+| `atualizar` / `update` | Atualização completa de APT, uv, pnpm, starship, repositório e faxina de disco |
+| `ld` | Abre o painel visual do Docker (Lazydocker) no terminal |
 | `ll` | Lista arquivos detalhadamente com permissões e tamanho formatado (`ls -lah`) |
-| `update` | Atualiza a lista de pacotes e o sistema operacional Ubuntu (`apt update && upgrade`) |
 | `ports` | Mostra quais portas locais estão abertas (ex: 3000, 4321, 5432, 8080) |
 | `myip` | Exibe o endereço IP interno da sua máquina WSL |
 | `open .` | Abre a pasta atual do Linux diretamente no Windows Explorer |
@@ -141,7 +189,7 @@ docker compose down     # Para os serviços
 
 ---
 
-### 6. Dicas Úteis do WSL
+### 8. Dicas Úteis do WSL
 
 - **Acessar arquivos do Windows no WSL:** Estão localizados em `/mnt/c/Users/SeuUsuario/`.
 - **Melhor desempenho de disco:** Mantenha sempre seus projetos dentro da home do Linux (ex: `~/projetos/`), e **não** dentro de `/mnt/c/`. O sistema de arquivos nativo do Linux no WSL é até 10x mais rápido!
