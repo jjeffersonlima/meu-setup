@@ -26,6 +26,7 @@
 | **CLI Essentials** | `curl`, `git`, `jq`, `fzf`, `ripgrep`, `build-essential` | Utilitários fundamentais para inspecionar APIs, buscar código e compilar pacotes. |
 | **Utilitário de Projetos**| **`novo-projeto`** (alias: `novo`) | Gerador interativo para criar novos sites em Astro, scripts de automação Python ou Docker Compose. |
 | **Manutenção Contínua** | **`atualizar`** (ou `update`) | Atualiza sistema, uv, pnpm, starship, o repositório meu-setup e faz faxina segura de disco. |
+| **Diagnóstico & Saúde** | **`diagnostico`** (ou `doctor`) | Varredura de integridade de todos os componentes com tabela visual e auditoria baseada em logs. |
 
 ---
 
@@ -174,12 +175,45 @@ atualizar
 
 ---
 
-### 7. Atalhos Úteis no Terminal
+### 7. Diagnóstico de Saúde & Auditoria (`diagnostico` ou `doctor`) 🩺
+
+Para garantir total transparência e nunca ficar em dúvida se alguma ferramenta falhou ao instalar ou parou de funcionar, o setup inclui um sistema de diagnóstico completo:
+
+```bash
+diagnostico
+# ou
+doctor
+```
+
+**O que o comando avalia:**
+- **WSL Systemd:** Valida se o suporte a serviços nativos está ativo.
+- **CLI Essentials:** Checa ferramentas fundamentais (`git`, `curl`, `jq`, `fzf`, `ripgrep`, `build-essential`).
+- **Starship Prompt:** Valida presença e versão do prompt.
+- **Node.js, pnpm & fnm:** Checa versões ativas do motor JavaScript.
+- **Python & uv:** Valida a presença do ambiente moderno da Astral.
+- **Docker Engine & Daemon:** Testa se o Docker está instalado, se o Compose v2 funciona e se o daemon está respondendo.
+- **Permissões de Usuário:** Verifica se seu usuário está no grupo `docker` para rodar sem `sudo`.
+- **Lazydocker:** Confirma a prontidão do painel visual.
+- **Git & Chave SSH:** Verifica identidade global e presença de chave Ed25519.
+- **Symlinks Locais:** Garante que todos os executáveis estão linkados em `~/.local/bin/`.
+
+#### 📄 Logs Completos de Instalação (Audit Trail)
+Todas as instalações geram um log detalhado gravado automaticamente em:
+```bash
+# Ver o último log de instalação executado:
+cat ~/.local/state/meu-setup/logs/install_latest.log
+```
+Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final e indica exatamente onde no log você pode ver o erro retornado pelo sistema.
+
+---
+
+### 8. Atalhos Úteis no Terminal
 
 | Atalho | O que faz |
 | :--- | :--- |
 | `novo` | Abre o assistente interativo para criar novos projetos (Astro, Python, Node, Docker) |
 | `atualizar` / `update` | Atualização completa de APT, uv, pnpm, starship, repositório e faxina de disco |
+| `diagnostico` / `doctor`| Varredura completa da saúde e versões de todas as ferramentas do ambiente |
 | `ld` | Abre o painel visual do Docker (Lazydocker) no terminal |
 | `ll` | Lista arquivos detalhadamente com permissões e tamanho formatado (`ls -lah`) |
 | `ports` | Mostra quais portas locais estão abertas (ex: 3000, 4321, 5432, 8080) |
@@ -189,7 +223,7 @@ atualizar
 
 ---
 
-### 8. Dicas Úteis do WSL
+### 9. Dicas Úteis do WSL
 
 - **Acessar arquivos do Windows no WSL:** Estão localizados em `/mnt/c/Users/SeuUsuario/`.
 - **Melhor desempenho de disco:** Mantenha sempre seus projetos dentro da home do Linux (ex: `~/projetos/`), e **não** dentro de `/mnt/c/`. O sistema de arquivos nativo do Linux no WSL é até 10x mais rápido!

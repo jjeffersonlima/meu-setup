@@ -150,6 +150,7 @@ if [ -d "$DIR_SETUP/.git" ]; then
     mkdir -p "$DIR_LOCAL_BIN"
     [ -f "$DIR_SETUP/bin/novo-projeto" ] && ln -sf "$DIR_SETUP/bin/novo-projeto" "$DIR_LOCAL_BIN/novo-projeto"
     [ -f "$DIR_SETUP/bin/atualizar" ] && ln -sf "$DIR_SETUP/bin/atualizar" "$DIR_LOCAL_BIN/atualizar"
+    [ -f "$DIR_SETUP/bin/diagnostico" ] && ln -sf "$DIR_SETUP/bin/diagnostico" "$DIR_LOCAL_BIN/diagnostico"
     log_sucesso "Atalhos executáveis em $DIR_LOCAL_BIN/ sincronizados!"
 else
     log_info "Diretório $DIR_SETUP não é um repositório git. Etapa ignorada."

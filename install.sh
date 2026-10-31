@@ -21,6 +21,17 @@ DIR_SETUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR_LOCAL_BIN="$HOME/.local/bin"
 mkdir -p "$DIR_LOCAL_BIN"
 
+# Sistema de Logs de Instalação (Audit Trail)
+LOG_DIR="$HOME/.local/state/meu-setup/logs"
+mkdir -p "$LOG_DIR"
+LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+LOG_FILE="$LOG_DIR/install_${LOG_TIMESTAMP}.log"
+LOG_LATEST="$LOG_DIR/install_latest.log"
+
+# Dual Logging: toda a saída é exibida no terminal e salva no log simultaneamente
+exec > >(tee -a "$LOG_FILE") 2>&1
+ln -sf "$LOG_FILE" "$LOG_LATEST"
+
 # Marcadores para o ~/.bashrc
 BASHRC_MARKER_START="# >>> meu-setup >>>"
 BASHRC_MARKER_END="# <<< meu-setup <<<"
@@ -457,6 +468,12 @@ configurar_bashrc() {
         log_sucesso "Utilitário 'atualizar' conectado via symlink em $DIR_LOCAL_BIN/atualizar"
     fi
 
+    if [ -f "$DIR_SETUP/bin/diagnostico" ]; then
+        ln -sf "$DIR_SETUP/bin/diagnostico" "$DIR_LOCAL_BIN/diagnostico"
+        chmod +x "$DIR_SETUP/bin/diagnostico"
+        log_sucesso "Utilitário 'diagnostico' conectado via symlink em $DIR_LOCAL_BIN/diagnostico"
+    fi
+
     # Garante backup do ~/.bashrc
     local timestamp
     timestamp=$(date +%Y%m%d_%H%M%S)
@@ -504,6 +521,10 @@ alias code='code 2>/dev/null || true'
 alias atualizar='atualizar'
 alias update='atualizar'
 
+# Diagnóstico e Saúde do Sistema
+alias diagnostico='diagnostico'
+alias doctor='diagnostico'
+
 # Utilitários de Projetos e Sites
 alias novo='novo-projeto'
 alias novo-astro='pnpm create astro@latest'
@@ -518,34 +539,50 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# Resumo Final e Guia Rápido
+# Resumo Final Dinâmico com Auditoria e Health Check
 # ------------------------------------------------------------------------------
 mostrar_conclusao() {
-    echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║               🎉 Instalação Concluída com Sucesso!              ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}\n"
+    log_secao "10. Auditoria de Integridade & Health Check Final"
+    echo -e "${CYAN}Executando autoteste dos componentes instalados...${NC}\n"
 
-    echo -e "${BOLD}O que foi configurado para você:${NC}"
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Starship Prompt:${NC} Prompt bonito e ágil com status de git, node e python."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Node.js & pnpm:${NC} Gerenciado por fnm, pronto para desenvolver sites com Astro."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Python & uv:${NC} O ambiente mais rápido para automações, APIs e scripts."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Docker Engine & Lazydocker:${NC} Containers nativos + painel visual rápido (digite ${CYAN}ld${NC})."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Git & GitHub:${NC} Chave SSH, branch 'main' e .gitignore global pré-configurado."
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Comando 'novo':${NC} Execute ${CYAN}novo${NC} no terminal para iniciar qualquer projeto!"
-    echo -e "  ${GREEN}✔${NC} ${BOLD}Comando 'atualizar':${NC} Mantenha todo o seu sistema e repo em dia digitando ${CYAN}atualizar${NC}.\n"
+    local falhas=0
+    if [ -x "$DIR_SETUP/bin/diagnostico" ]; then
+        if ! "$DIR_SETUP/bin/diagnostico"; then
+            falhas=1
+        fi
+    fi
+
+    if [ "$falhas" -eq 0 ]; then
+        echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║          🎉 Instalação Concluída e 100% Validada!              ║${NC}"
+        echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}\n"
+        echo -e "${GREEN}✔ Todos os componentes foram verificados e estão operacionais.${NC}\n"
+    else
+        echo -e "\n${YELLOW}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║       ⚠ Instalação Concluída com Alertas ou Falhas            ║${NC}"
+        echo -e "${YELLOW}╚════════════════════════════════════════════════════════════════╝${NC}\n"
+        echo -e "${YELLOW}Alguns componentes precisam de atenção (verifique a tabela acima).${NC}"
+        echo -e "${YELLOW}Consulte o log detalhado para inspecionar os erros exatos:${NC}"
+        echo -e "  ${CYAN}cat $LOG_LATEST${NC}\n"
+    fi
+
+    echo -e "${CYAN}📄 Log completo gravado em:${NC} $LOG_FILE"
+    echo -e "${CYAN}   (Link simbólico mais recente:${NC} $LOG_LATEST)\n"
 
     echo -e "${YELLOW}Como começar agora mesmo:${NC}"
     echo -e "  1. Recarregue seu terminal com:"
     echo -e "     ${CYAN}source ~/.bashrc${NC}  ${YELLOW}(ou feche e abra o terminal para ativar o grupo docker)${NC}\n"
-    echo -e "  2. Abra o gerenciador visual do Docker:"
-    echo -e "     ${CYAN}ld${NC}   ${YELLOW}(ou 'lazydocker')${NC}\n"
-    echo -e "  3. Crie seu primeiro site ou automação:"
-    echo -e "     ${CYAN}novo${NC}  ${YELLOW}(ou 'novo-astro', 'novo-python')${NC}\n"
-    echo -e "  4. Mantenha seu ambiente sempre novo:"
+    echo -e "  2. Teste a saúde das ferramentas a qualquer momento:"
+    echo -e "     ${CYAN}diagnostico${NC}  ${YELLOW}(ou 'doctor')${NC}\n"
+    echo -e "  3. Abra o gerenciador visual do Docker:"
+    echo -e "     ${CYAN}ld${NC}           ${YELLOW}(ou 'lazydocker')${NC}\n"
+    echo -e "  4. Crie seu primeiro site ou automação:"
+    echo -e "     ${CYAN}novo${NC}         ${YELLOW}(ou 'novo-astro', 'novo-python')${NC}\n"
+    echo -e "  5. Mantenha seu ambiente sempre novo:"
     echo -e "     ${CYAN}atualizar${NC}\n"
-    echo -e "  5. Para abrir pastas no VS Code ou no Windows:"
-    echo -e "     ${CYAN}code .${NC}     (abre no VS Code)"
-    echo -e "     ${CYAN}open .${NC}     (abre a pasta atual no Explorer do Windows)\n"
+    echo -e "  6. Para abrir pastas no VS Code ou no Windows:"
+    echo -e "     ${CYAN}code .${NC}        (abre no VS Code)"
+    echo -e "     ${CYAN}open .${NC}        (abre a pasta atual no Explorer do Windows)\n"
 }
 
 # ------------------------------------------------------------------------------
