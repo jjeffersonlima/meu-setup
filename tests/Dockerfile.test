@@ -1,0 +1,23 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instala ferramentas base presentes em qualquer imagem padrão do Ubuntu / WSL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sudo \
+    ca-certificates \
+    curl \
+    git \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cria usuário não-root 'dev' com permissão sudo sem senha (simulação fiel do WSL)
+RUN useradd -m -s /bin/bash dev && \
+    echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER dev
+ENV USER=dev
+ENV HOME=/home/dev
+WORKDIR /home/dev/meu-setup
+
+CMD ["/bin/bash"]

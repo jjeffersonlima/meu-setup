@@ -334,3 +334,62 @@ Se qualquer pacote ou etapa falhar, o instalador aponta a falha na tabela final 
   wsl --shutdown
   ```
   Depois abra o terminal do Ubuntu novamente.
+
+---
+
+## 🧪 Suíte de Testes & Qualidade de Código
+
+Para garantir que novas modificações, automações ou ferramentas nunca quebrem o que já está funcionando, o projeto possui uma pirâmide completa de testes determinísticos e automatizados, sem consumir nenhum token de IA:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   🎯 Pirâmide de Qualidade & Testes                   │
+├────────────────────────────────────────────────────────────────────────┤
+│  [Camada 3] Testes End-to-End (E2E) Determinísticos em Docker          │
+│  - Container Ubuntu limpo simulando o WSL                              │
+│  - Validação da instalação completa do zero (--yes)                    │
+│  - Validação rigorosa de Idempotência (2ª execução sem duplicar nada)  │
+│  - Verificação de binários (~/.local/bin) e comandos CLI               │
+│  - Teste do gerador 'novo-projeto' e auditoria do 'diagnostico'        │
+├────────────────────────────────────────────────────────────────────────┤
+│  [Camada 2] Smoke Tests & Validação CLI (Rápido: ~2s)                  │
+│  - Validação de flags (--help, --yes, argumentos inválidos)            │
+│  - Testes isolados de cada módulo em lib/                              │
+│  - Teste de geração não-interativa de templates                        │
+├────────────────────────────────────────────────────────────────────────┤
+│  [Camada 1] Análise Estática & Linting (ShellCheck)                    │
+│  - Varredura de sintaxe bash -n e ShellCheck com 0 alertas             │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Comandos Rápidos de Teste
+
+| Comando | Descrição | Tempo Estimado |
+| :--- | :--- | :--- |
+| `make test-fast` | Executa Camadas 1 e 2 (Linting estático + Smoke tests locais) | ~2 segundos |
+| `make lint` | Executa apenas validação de sintaxe e ShellCheck | ~1 segundo |
+| `make smoke` | Executa testes das flags CLI e módulos em `lib/` | ~1 segundo |
+| `make e2e` | Constrói container limpo e executa a suíte E2E completa com idempotência | ~1-2 minutos |
+| `make test` | Executa todas as 3 camadas em sequência | ~1-2 minutos |
+
+### Execução Não-Interativa (CI & Automação)
+
+Todos os scripts suportam parâmetros e flags de linha de comando para execuções automatizadas em esteiras de CI ou scripts externos:
+
+```bash
+# Instalação completa sem prompts interativos
+./install.sh --yes
+
+# Criação direta de projetos sem menu interativo
+novo-projeto python meu-bot
+novo-projeto node api-ts
+novo-projeto docker infra-stack
+
+# Atualização contínua automatizada
+atualizar --yes
+```
+
+### Integração Contínua (GitHub Actions)
+
+O repositório inclui um workflow configurado em `.github/workflows/ci.yml` que valida automaticamente cada `push` e `pull_request` nas branches principais, garantindo que nenhum código com regressão chegue ao repositório.
+

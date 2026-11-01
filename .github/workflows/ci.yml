@@ -1,0 +1,37 @@
+name: CI - Qualidade e Testes Determinísticos
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint-and-smoke:
+    name: Linting & Smoke Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Executar Linting (ShellCheck + bash -n)
+        run: ./tests/lint.sh
+
+      - name: Executar Smoke Tests (CLI + Módulos)
+        run: ./tests/smoke.sh
+
+  e2e-docker:
+    name: Testes End-to-End no Docker (Ubuntu Limpo + Idempotência)
+    needs: lint-and-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Executar Suíte E2E em Container Docker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tests/e2e_docker.sh

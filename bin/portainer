@@ -168,6 +168,7 @@ mostrar_status() {
     local ativos
     ativos=$(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
     if [ "$(echo "$ativos" | wc -l)" -gt 1 ]; then
+        # shellcheck disable=SC2001
         echo "$ativos" | sed 's/^/  /'
     else
         echo -e "  ${GREEN}Nenhum container ativo. Consumo de RAM: 0 MB.${NC}"

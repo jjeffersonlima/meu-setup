@@ -6,12 +6,25 @@
 
 set -u
 
+# Carrega ~/.local/bin e fnm no PATH se ainda não estiverem presentes nesta sessão
+if [ -d "$HOME/.local/bin" ] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+if [ -d "$HOME/.local/share/fnm" ]; then
+    if [[ ":$PATH:" != *":$HOME/.local/share/fnm:"* ]]; then
+        export PATH="$HOME/.local/share/fnm:$PATH"
+    fi
+    eval "$(fnm env --use-on-cd 2>/dev/null || true)"
+fi
+
 # Paleta de cores para o terminal
 BOLD='\033[1m'
 GREEN='\033[0;32m'
+# shellcheck disable=SC2034
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+# shellcheck disable=SC2034
 MAGENTA='\033[0;35m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
@@ -89,7 +102,6 @@ fi
 
 # 4. Node.js & pnpm & fnm
 ((TOTAL_VERIFICACOES++))
-NODE_STATUS=""
 if command -v fnm >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
     NODE_VER=$(node -v 2>/dev/null)
     PNPM_VER=$(pnpm -v 2>/dev/null)
@@ -263,7 +275,7 @@ echo ""
 ESPACO_DISCO=$(df -h / | awk 'NR==2 {print $4 " livres de " $2 " (usado: " $5 ")"}')
 echo -e "  💾 ${BOLD}Espaço em Disco WSL:${NC} $ESPACO_DISCO"
 
-PORTAS_ATIVAS=$(ss -tulan 2>/dev/null | grep LISTEN | wc -l || echo "0")
+PORTAS_ATIVAS=$(ss -tulan 2>/dev/null | grep -c LISTEN || echo "0")
 echo -e "  🔌 ${BOLD}Portas em Escuta:${NC}    $PORTAS_ATIVAS serviços locais ativos"
 
 # Log mais recente disponível

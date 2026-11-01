@@ -1,4 +1,84 @@
-.DS_Store
+# ==============================================================================
+# meu-setup: .gitignore
+# Regras assertivas para impedir vazamento de segredos, logs, caches e temporários
+# ==============================================================================
+
+# Documentos locais de desenvolvimento, rascunhos e notas
+DEVELOPMENT.md
+*DEVELOPMENT*
+*.draft.md
+*TODO*
+*NOTES*
+notes/
+scratch/
+
+# Segredos, chaves e credenciais
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.asc
+*.gpg
+id_rsa*
+id_ed25519*
+*.pub
+.env
+.env.*
+!.env.example
+*token*.txt
+*secret*
+credentials*
+
+# Logs e auditoria local
 *.log
-*.bak*
+*.log.*
+logs/
+.local/
+install_*.log
+
+# Caches e arquivos temporários
 *.tmp
+*.bak*
+*.backup.*
+*.swp
+*.swo
+*~
+tmp/
+temp/
+.cache/
+
+# Ambientes virtuais e runtimes (Python / Node)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+.pnpm-store/
+dist/
+build/
+
+# Testes locais e relatórios de cobertura
+.coverage
+coverage/
+test-results/
+
+# Editores e Sistemas Operacionais
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+.idea/
+.vscode/
+*.code-workspace
+
+# Overrides locais e dados de containers
+*.local
+.bash_history*
+.zsh_history*
+docker-compose.override.yml
+portainer_data/

@@ -2,6 +2,7 @@
 # ==============================================================================
 # meu-setup: novo-projeto
 # Utilitário para inicializar rapidamente projetos de automações, sites e apps.
+# Suporta execução interativa e argumentos de linha de comando.
 # ==============================================================================
 
 set -e
@@ -15,12 +16,31 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 mostrar_banner() {
-    echo -e "${CYAN}"
-    echo "  ╔══════════════════════════════════════════════════╗"
-    echo "  ║            🚀 Gerador de Novos Projetos          ║"
-    echo "  ║                   meu-setup                      ║"
-    echo "  ╚══════════════════════════════════════════════════╝"
-    echo -e "${NC}"
+    if [ -t 1 ]; then
+        echo -e "${CYAN}"
+        echo "  ╔══════════════════════════════════════════════════╗"
+        echo "  ║            🚀 Gerador de Novos Projetos          ║"
+        echo "  ║                   meu-setup                      ║"
+        echo "  ╚══════════════════════════════════════════════════╝"
+        echo -e "${NC}"
+    fi
+}
+
+mostrar_ajuda() {
+    echo "Uso: novo-projeto [TIPO] [NOME]"
+    echo "  ou: novo-projeto --type [TIPO] --name [NOME]"
+    echo ""
+    echo "Tipos disponíveis:"
+    echo "  astro     Site moderno com Astro"
+    echo "  python    Projeto de automação ou script Python com uv"
+    echo "  node      Projeto Node.js com TypeScript e tsx"
+    echo "  docker    Ambiente Docker Compose (PostgreSQL + Redis)"
+    echo ""
+    echo "Exemplos:"
+    echo "  novo-projeto python meu-bot"
+    echo "  novo-projeto astro meu-blog"
+    echo "  novo-projeto node api-vendas"
+    echo "  novo-projeto docker infra-banco"
 }
 
 criar_projeto_astro() {
@@ -153,10 +173,10 @@ criar_projeto_node() {
 
     if command -v pnpm >/dev/null 2>&1; then
         pnpm init
-        pnpm add -D typescript @types/node tsx
+        pnpm add -D typescript @types/node tsx 2>/dev/null || true
     else
         npm init -y
-        npm install --save-dev typescript @types/node tsx
+        npm install --save-dev typescript @types/node tsx 2>/dev/null || true
     fi
 
     mkdir -p src
@@ -180,7 +200,75 @@ EOF
     echo -e "  npx tsx src/index.ts\n"
 }
 
-# Menu interativo se nenhum argumento for passado
+# --- Processamento de Argumentos CLI ---
+tipo=""
+nome=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            mostrar_ajuda
+            exit 0
+            ;;
+        --type)
+            tipo="$2"
+            shift 2
+            ;;
+        --name)
+            nome="$2"
+            shift 2
+            ;;
+        astro|python|node|docker)
+            tipo="$1"
+            if [ -n "${2:-}" ] && [[ "$2" != -* ]]; then
+                nome="$2"
+                shift 2
+            else
+                shift 1
+            fi
+            ;;
+        *)
+            if [ -z "$tipo" ]; then
+                tipo="$1"
+            elif [ -z "$nome" ]; then
+                nome="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -n "$tipo" ]; then
+    case "$tipo" in
+        astro)
+            nome=${nome:-meu-site}
+            criar_projeto_astro "$nome"
+            exit 0
+            ;;
+        python)
+            nome=${nome:-automacao-python}
+            criar_projeto_python "$nome"
+            exit 0
+            ;;
+        node)
+            nome=${nome:-app-node}
+            criar_projeto_node "$nome"
+            exit 0
+            ;;
+        docker)
+            nome=${nome:-stack-docker}
+            criar_projeto_docker "$nome"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Tipo desconhecido: '$tipo'.${NC}"
+            mostrar_ajuda
+            exit 1
+            ;;
+    esac
+fi
+
+# Se não foram passados argumentos via CLI, abre o menu interativo
 mostrar_banner
 
 echo -e "Escolha o tipo de projeto que deseja criar:\n"
