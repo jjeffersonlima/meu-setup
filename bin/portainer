@@ -81,6 +81,36 @@ iniciar_portainer() {
         docker volume create "$NOME_VOLUME" >/dev/null
     fi
 
+    local port_http_bind="127.0.0.1:${PORTA_HTTP}:9000"
+    local port_https_bind="127.0.0.1:${PORTA_HTTPS}:9443"
+
+    if [ "${MODO_LAN:-false}" = true ]; then
+        port_http_bind="${PORTA_HTTP}:9000"
+        port_https_bind="${PORTA_HTTPS}:9443"
+        echo -e "${YELLOW}⚠ ATENÇÃO: Modo LAN ativado! Portas 9000/9443 expostas na rede local.${NC}"
+    else
+        echo -e "${GREEN}✔ Modo Seguro Ativo: Vinculando Portainer exclusivamente a localhost (127.0.0.1).${NC}"
+    fi
+
+    # Se já existir, verifica se o tipo de vinculação de rede mudou
+    if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
+        local current_binding
+        current_binding=$(docker inspect "$NOME_CONTAINER" --format '{{(index (index .HostConfig.PortBindings "9000/tcp") 0).HostIp}}' 2>/dev/null || true)
+        local precisa_recriar=false
+
+        if [ "${MODO_LAN:-false}" = true ] && [ "$current_binding" = "127.0.0.1" ]; then
+            echo -e "${YELLOW}Reconfigurando Portainer para modo LAN exposto na rede...${NC}"
+            precisa_recriar=true
+        elif [ "${MODO_LAN:-false}" = false ] && [ "$current_binding" != "127.0.0.1" ]; then
+            echo -e "${YELLOW}Migrando Portainer existente para o modo seguro 127.0.0.1...${NC}"
+            precisa_recriar=true
+        fi
+
+        if [ "$precisa_recriar" = true ]; then
+            docker rm -f "$NOME_CONTAINER" >/dev/null 2>&1 || true
+        fi
+    fi
+
     # Verifica se já existe um container com esse nome
     if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
         if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
@@ -93,8 +123,8 @@ iniciar_portainer() {
     else
         echo -e "${YELLOW}Criando e subindo o container do Portainer...${NC}"
         docker run -d \
-            -p "${PORTA_HTTP}:9000" \
-            -p "${PORTA_HTTPS}:9443" \
+            -p "$port_http_bind" \
+            -p "$port_https_bind" \
             --name "$NOME_CONTAINER" \
             --restart=no \
             -v /var/run/docker.sock:/var/run/docker.sock \
@@ -209,7 +239,7 @@ reiniciar_limpo() {
 
 mostrar_ajuda() {
     mostrar_banner
-    echo -e "Uso: ${BOLD}portainer${NC} [comando]\n"
+    echo -e "Uso: ${BOLD}portainer${NC} [comando] [flags]\n"
     echo -e "Comandos disponíveis:"
     echo -e "  ${CYAN}portainer${NC} (ou ${CYAN}start${NC}, ${CYAN}on${NC})    Inicia o Portainer e abre no navegador (http://localhost:9000)"
     echo -e "  ${CYAN}portainer token${NC}              Exibe o Setup Token gerado nos logs do container"
@@ -219,10 +249,32 @@ mostrar_ajuda() {
     echo -e "  ${CYAN}portainer status${NC}             Exibe o estado do Portainer e outros containers ativos"
     echo -e "  ${CYAN}portainer logs${NC}               Exibe os logs do Portainer em tempo real"
     echo -e "  ${CYAN}portainer help${NC}               Exibe este menu de ajuda\n"
+    echo -e "Opções e Flags de Rede:"
+    echo -e "  ${CYAN}--lan, --public${NC}              Abre portas em 0.0.0.0 (exposição em rede local/Wi-Fi)"
+    echo -e "  ${CYAN}(padrão)${NC}                     Modo Seguro vinculado exclusivamente a 127.0.0.1 (localhost)\n"
 }
 
-# Subcomandos
-acao="${1:-start}"
+# Processamento de flags e subcomandos
+MODO_LAN=false
+args=()
+
+for arg in "$@"; do
+    case "$arg" in
+        --lan|--public)
+            MODO_LAN=true
+            ;;
+        *)
+            args+=("$arg")
+            ;;
+    esac
+done
+
+if [ ${#args[@]} -gt 0 ]; then
+    set -- "${args[@]}"
+    acao="${1:-start}"
+else
+    acao="start"
+fi
 
 case "$acao" in
     start|on|up)

@@ -53,6 +53,7 @@ asserir '[ -x "$BIN_DIR/bat" ] || command -v batcat >/dev/null 2>&1' "Binário b
 asserir '[ -x "$BIN_DIR/eza" ]' "Binário eza instalado e executável"
 asserir '[ -x "$BIN_DIR/uv" ]' "Binário uv instalado e executável"
 asserir '[ -x "$FNM_BIN" ] || command -v fnm >/dev/null 2>&1' "Gerenciador fnm instalado e executável"
+asserir '[ -f "$HOME/.local/share/bash-completion/completions/uv" ]' "Cache estático do autocompletar do uv gerado"
 
 # Utilitários do projeto conectados via symlink
 asserir '[ -L "$BIN_DIR/novo-projeto" ]' "Symlink para novo-projeto ativo"

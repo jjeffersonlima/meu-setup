@@ -72,6 +72,42 @@ else
     imprimir_linha_tabela "WSL Systemd" "${RED}✖ AUSENTE${NC}" "systemd=true não encontrado em /etc/wsl.conf"
 fi
 
+# 1.1 Hipervisor WSL (.wslconfig)
+((TOTAL_VERIFICACOES++))
+WIN_USER_PROFILE=""
+if command -v cmd.exe >/dev/null 2>&1; then
+    RAW_WIN_PROFILE=$(cmd.exe /c "echo %USERPROFILE%" 2>/dev/null | tr -d '\r\n' || true)
+    if [ -n "$RAW_WIN_PROFILE" ] && command -v wslpath >/dev/null 2>&1; then
+        WIN_USER_PROFILE=$(wslpath "$RAW_WIN_PROFILE" 2>/dev/null || true)
+    fi
+fi
+if [ -z "$WIN_USER_PROFILE" ] && [ -d "/mnt/c/Users" ]; then
+    for u in /mnt/c/Users/*; do
+        b="$(basename "$u")"
+        if [ -d "$u" ] && [ "$b" != "Public" ] && [ "$b" != "Default" ] && [ "$b" != "All Users" ] && [ "$b" != "Default User" ]; then
+            WIN_USER_PROFILE="$u"
+            break
+        fi
+    done
+fi
+
+if [ -n "$WIN_USER_PROFILE" ] && [ -d "$WIN_USER_PROFILE" ]; then
+    WSLCONFIG_FILE="$WIN_USER_PROFILE/.wslconfig"
+    if [ -f "$WSLCONFIG_FILE" ] && grep -qi "\[experimental\]" "$WSLCONFIG_FILE" 2>/dev/null && grep -qi "autoMemoryReclaim" "$WSLCONFIG_FILE" 2>/dev/null; then
+        ((TOTAL_SUCESSOS++))
+        imprimir_linha_tabela "Hipervisor WSL" "${GREEN}✔ OTIMIZADO${NC}" "RAM auto-reclaim e sparseVhd ok"
+    elif [ -f "$WSLCONFIG_FILE" ]; then
+        ((TOTAL_AVISOS++))
+        imprimir_linha_tabela "Hipervisor WSL" "${YELLOW}⚠ PARCIAL${NC}" "adicione seção [experimental] no .wslconfig"
+    else
+        ((TOTAL_AVISOS++))
+        imprimir_linha_tabela "Hipervisor WSL" "${YELLOW}⚠ NÃO OTIMIZADO${NC}" "execute ./install.sh para criar .wslconfig"
+    fi
+else
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Hipervisor WSL" "${GREEN}✔ NATIVO/CONTAINER${NC}" "não requer .wslconfig do Windows"
+fi
+
 # 2. CLI Essentials (curl, git, jq, fzf, ripgrep, build-essential)
 ((TOTAL_VERIFICACOES++))
 ESSENCIAIS_FALTANDO=()
@@ -224,8 +260,14 @@ fi
 ((TOTAL_VERIFICACOES++))
 if [ -f "$HOME/.local/bin/portainer" ] || command -v portainer >/dev/null 2>&1; then
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq "^portainer$"; then
-        ((TOTAL_SUCESSOS++))
-        imprimir_linha_tabela "Portainer CE (Web)" "${GREEN}✔ ATIVO${NC}" "http://localhost:9000"
+        PORT_BIND=$(docker inspect portainer --format '{{(index (index .HostConfig.PortBindings "9000/tcp") 0).HostIp}}' 2>/dev/null || true)
+        if [ "$PORT_BIND" = "127.0.0.1" ]; then
+            ((TOTAL_SUCESSOS++))
+            imprimir_linha_tabela "Portainer CE (Web)" "${GREEN}✔ ATIVO (SEGURO)${NC}" "http://localhost:9000 (127.0.0.1)"
+        else
+            ((TOTAL_AVISOS++))
+            imprimir_linha_tabela "Portainer CE (Web)" "${YELLOW}⚠ ATIVO (REDE LAN)${NC}" "porta 9000 em 0.0.0.0 (use sem --lan para isolar)"
+        fi
     elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Eq "^portainer$"; then
         ((TOTAL_SUCESSOS++))
         imprimir_linha_tabela "Portainer CE (Web)" "${GREEN}✔ SOB DEMANDA${NC}" "Parado (0 MB RAM) - rode 'portainer'"
@@ -266,6 +308,19 @@ elif [ -f "$HOME/.local/bin/novo-projeto" ]; then
 else
     ((TOTAL_FALHAS++))
     imprimir_linha_tabela "Utilitários meu-setup" "${RED}✖ AUSENTE${NC}" "Atalhos ausentes em ~/.local/bin"
+fi
+
+# 16. Otimização de Inicialização do Shell (Cache de Autocompletar)
+((TOTAL_VERIFICACOES++))
+if [ -f "$HOME/.local/share/bash-completion/completions/uv" ]; then
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Shell Cache (uv)" "${GREEN}✔ OTIMIZADO${NC}" "autocompletar em cache (boot instantâneo)"
+elif command -v uv >/dev/null 2>&1; then
+    ((TOTAL_AVISOS++))
+    imprimir_linha_tabela "Shell Cache (uv)" "${YELLOW}⚠ SEM CACHE${NC}" "rode './install.sh' ou 'atualizar' para acelerar shell"
+else
+    ((TOTAL_SUCESSOS++))
+    imprimir_linha_tabela "Shell Cache (uv)" "${GREEN}✔ N/A${NC}" "uv não instalado"
 fi
 
 echo "  ---------------------------------------------------------------------------------------"

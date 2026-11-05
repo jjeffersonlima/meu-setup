@@ -27,6 +27,20 @@ configurar_bashrc() {
         fi
     done
 
+    # Prepara diretório padrão de bash-completion e gera cache estático do uv para boot instantâneo
+    local dir_completions="$HOME/.local/share/bash-completion/completions"
+    mkdir -p "$dir_completions"
+    local uv_bin=""
+    if [ -x "$DIR_LOCAL_BIN/uv" ]; then
+        uv_bin="$DIR_LOCAL_BIN/uv"
+    elif command -v uv >/dev/null 2>&1; then
+        uv_bin="uv"
+    fi
+    if [ -n "$uv_bin" ]; then
+        "$uv_bin" generate-shell-completion bash > "$dir_completions/uv" 2>/dev/null || true
+        log_sucesso "Cache de autocompletar do uv gerado em $dir_completions/uv"
+    fi
+
     # Garante que ~/.bashrc exista
     touch "$HOME/.bashrc"
 
@@ -54,9 +68,10 @@ if [ -d "$HOME/.local/share/fnm" ]; then
     eval "$(fnm env --use-on-cd 2>/dev/null)"
 fi
 
-# uv (Python package manager)
-if [ -d "$HOME/.local/bin" ] && [ -f "$HOME/.local/bin/uv" ]; then
-    eval "$(uv generate-shell-completion bash 2>/dev/null)"
+# uv (Python package manager - autocompletar via cache estático)
+if [ -f "$HOME/.local/share/bash-completion/completions/uv" ]; then
+    # shellcheck source=/dev/null
+    source "$HOME/.local/share/bash-completion/completions/uv" 2>/dev/null
 fi
 
 # Zoxide (Navegação Inteligente entre Diretórios - comando 'z')
@@ -77,8 +92,8 @@ else
     alias ll='ls -lah --color=auto'
 fi
 
-if command -v bat >/dev/null 2>&1 || [ -f "$HOME/.local/bin/bat" ]; then
-    alias bat='bat 2>/dev/null || batcat'
+if command -v batcat >/dev/null 2>&1 && ! command -v bat >/dev/null 2>&1; then
+    alias bat='batcat'
 fi
 
 # Aliases úteis para o dia a dia

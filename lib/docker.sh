@@ -17,7 +17,7 @@ instalar_docker() {
         log_pulado "Docker já está instalado ($(docker --version))"
     else
         log_info "Instalando Docker Engine nativo no WSL..."
-        $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get update -y
+        executar_apt_update
         # No repositório oficial do Ubuntu o plugin se chama docker-compose-v2; no repo externo se chama docker-compose-plugin
         if apt-cache show docker-compose-v2 >/dev/null 2>&1; then
             $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io docker-compose-v2

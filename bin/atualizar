@@ -119,6 +119,8 @@ log_sucesso "Limpeza do APT concluída com sucesso!"
 log_etapa "3/7" "Verificando atualização do gerenciador Python (uv)..."
 if command -v uv >/dev/null 2>&1; then
     uv self update 2>/dev/null || log_info "uv já está na versão mais recente."
+    mkdir -p "$HOME/.local/share/bash-completion/completions"
+    uv generate-shell-completion bash > "$HOME/.local/share/bash-completion/completions/uv" 2>/dev/null || true
     log_sucesso "uv verificado: $(uv --version)"
 else
     log_aviso "uv não encontrado. Instale com o instalador do meu-setup."

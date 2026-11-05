@@ -70,7 +70,7 @@ echo -e "\n${BLUE}▶ [3/4] Testando integridade das funções exportadas...${NC
 
 funcoes=(
     "mostrar_banner" "log_info" "log_sucesso" "log_aviso" "log_pulado" "log_erro" "log_secao"
-    "verificar_wsl" "checar_sudo" "configurar_wsl_conf" "instalar_pacote_essencial"
+    "verificar_wsl" "checar_sudo" "configurar_wsl_conf" "otimizar_wslconfig" "executar_apt_update" "instalar_pacote_essencial"
     "instalar_starship" "instalar_lazydocker" "instalar_lazygit" "instalar_zoxide" "instalar_bat" "instalar_eza"
     "instalar_node_e_astro" "instalar_python_e_uv"
     "instalar_docker" "preparar_portainer"
@@ -110,6 +110,11 @@ cd "$TMP_DIR"
 asserir '[ -d "$TMP_DIR/test-docker-stack" ]' "Diretório do Docker Compose foi criado"
 asserir '[ -f "$TMP_DIR/test-docker-stack/docker-compose.yml" ]' "docker-compose.yml com PostgreSQL e Redis foi gerado"
 asserir 'grep -q "postgres:16-alpine" "$TMP_DIR/test-docker-stack/docker-compose.yml"' "Serviço Postgres configurado no docker-compose.yml"
+asserir 'grep -q "127.0.0.1:5432:5432" "$TMP_DIR/test-docker-stack/docker-compose.yml"' "Serviço Postgres isolado em 127.0.0.1 (Modo Seguro)"
+asserir 'grep -q "127.0.0.1:6379:6379" "$TMP_DIR/test-docker-stack/docker-compose.yml"' "Serviço Redis isolado em 127.0.0.1 (Modo Seguro)"
+
+# Teste: Bloqueio de Path Traversal
+asserir '! "$DIR_ROOT/bin/novo-projeto" python "../malicioso" >/dev/null 2>&1' "novo-projeto bloqueia nomes com ../ (Path Traversal seguro)"
 
 # Teste: Projeto Node
 cd "$TMP_DIR"

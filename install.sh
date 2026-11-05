@@ -14,6 +14,7 @@ mkdir -p "$DIR_LOCAL_BIN"
 # Sistema de Logs de Instalação (Audit Trail)
 LOG_DIR="$HOME/.local/state/meu-setup/logs"
 mkdir -p "$LOG_DIR"
+chmod 700 "$LOG_DIR" 2>/dev/null || true
 LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="$LOG_DIR/install_${LOG_TIMESTAMP}.log"
 LOG_LATEST="$LOG_DIR/install_latest.log"
@@ -21,6 +22,8 @@ LOG_LATEST="$LOG_DIR/install_latest.log"
 # Dual Logging: toda a saída é exibida no terminal e salva no log simultaneamente
 if [ -z "${SETUP_LOGGING_ACTIVE:-}" ]; then
     export SETUP_LOGGING_ACTIVE=true
+    touch "$LOG_FILE"
+    chmod 600 "$LOG_FILE" 2>/dev/null || true
     exec > >(tee -a "$LOG_FILE") 2>&1
     ln -sf "$LOG_FILE" "$LOG_LATEST" 2>/dev/null || true
 fi
@@ -51,6 +54,7 @@ mostrar_ajuda() {
 executar_instalacao_completa() {
     checar_sudo
     configurar_wsl_conf
+    otimizar_wslconfig
     instalar_pacote_essencial
     instalar_starship
     instalar_node_e_astro
@@ -70,10 +74,13 @@ executar_instalacao_completa() {
 executar_instalacao_personalizada() {
     checar_sudo
     
-    local r_wsl r_cli r_star r_node r_py r_dock r_lazy r_port r_lg r_zox r_bat r_eza r_git
+    local r_wsl r_wslcfg r_cli r_star r_node r_py r_dock r_lazy r_port r_lg r_zox r_bat r_eza r_git
 
     read -rp "Otimizar /etc/wsl.conf com systemd e interop? [S/n]: " r_wsl
     [[ "${r_wsl:-S}" =~ ^[Ss]$ ]] && configurar_wsl_conf
+
+    read -rp "Otimizar Hipervisor WSL (.wslconfig no Windows para auto-liberação de RAM e disco)? [S/n]: " r_wslcfg
+    [[ "${r_wslcfg:-S}" =~ ^[Ss]$ ]] && otimizar_wslconfig
 
     read -rp "Instalar Pacote Essencial CLI (curl, git, jq, fzf, ripgrep, build-essential)? [S/n]: " r_cli
     [[ "${r_cli:-S}" =~ ^[Ss]$ ]] && instalar_pacote_essencial

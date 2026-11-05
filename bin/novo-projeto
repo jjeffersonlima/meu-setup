@@ -43,6 +43,19 @@ mostrar_ajuda() {
     echo "  novo-projeto docker infra-banco"
 }
 
+validar_nome_projeto() {
+    local n="$1"
+    if [ -z "$n" ]; then
+        echo -e "${RED}Erro: Nome do projeto não pode ser vazio!${NC}"
+        exit 1
+    fi
+    if [[ ! "$n" =~ ^[a-zA-Z0-9._-]+$ ]] || [[ "$n" == ".." ]] || [[ "$n" == "." ]]; then
+        echo -e "${RED}Erro: Nome de projeto inválido: '$n'${NC}"
+        echo -e "${YELLOW}Use apenas letras, números, hífen (-), ponto (.) e underline (_), sem barras de diretório.${NC}"
+        exit 1
+    fi
+}
+
 criar_projeto_astro() {
     local nome="$1"
     echo -e "\n${BLUE}▶ Criando site com Astro: ${YELLOW}$nome${NC}"
@@ -119,7 +132,7 @@ criar_projeto_docker() {
 
     cat << 'EOF' > docker-compose.yml
 services:
-  # Exemplo de banco de dados PostgreSQL pronto para uso
+  # Exemplo de banco de dados PostgreSQL pronto para uso (isolado em 127.0.0.1)
   postgres:
     image: postgres:16-alpine
     container_name: app_postgres
@@ -129,16 +142,16 @@ services:
       POSTGRES_PASSWORD: senha_segura
       POSTGRES_DB: meu_banco
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # Exemplo de cache Redis
+  # Exemplo de cache Redis (isolado em 127.0.0.1)
   redis:
     image: redis:alpine
     container_name: app_redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
 volumes:
   pgdata:
@@ -242,21 +255,25 @@ if [ -n "$tipo" ]; then
     case "$tipo" in
         astro)
             nome=${nome:-meu-site}
+            validar_nome_projeto "$nome"
             criar_projeto_astro "$nome"
             exit 0
             ;;
         python)
             nome=${nome:-automacao-python}
+            validar_nome_projeto "$nome"
             criar_projeto_python "$nome"
             exit 0
             ;;
         node)
             nome=${nome:-app-node}
+            validar_nome_projeto "$nome"
             criar_projeto_node "$nome"
             exit 0
             ;;
         docker)
             nome=${nome:-stack-docker}
+            validar_nome_projeto "$nome"
             criar_projeto_docker "$nome"
             exit 0
             ;;
@@ -284,21 +301,25 @@ case "$opcao" in
     1)
         read -rp "Nome do novo site Astro (ex: meu-site): " nome_proj
         nome_proj=${nome_proj:-meu-site}
+        validar_nome_projeto "$nome_proj"
         criar_projeto_astro "$nome_proj"
         ;;
     2)
         read -rp "Nome do projeto Python (ex: automacao-dados): " nome_proj
         nome_proj=${nome_proj:-automacao-python}
+        validar_nome_projeto "$nome_proj"
         criar_projeto_python "$nome_proj"
         ;;
     3)
         read -rp "Nome do projeto Node (ex: minha-api): " nome_proj
         nome_proj=${nome_proj:-app-node}
+        validar_nome_projeto "$nome_proj"
         criar_projeto_node "$nome_proj"
         ;;
     4)
         read -rp "Nome da pasta do ambiente Docker (ex: stack-banco): " nome_proj
         nome_proj=${nome_proj:-stack-docker}
+        validar_nome_projeto "$nome_proj"
         criar_projeto_docker "$nome_proj"
         ;;
     5)

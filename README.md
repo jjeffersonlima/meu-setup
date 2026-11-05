@@ -165,8 +165,11 @@ lazydocker
 Se você prefere a praticidade de **subir Stacks colando arquivos Compose no navegador**, o setup inclui o **Portainer CE** configurado em modo **Sob Demanda** (zero consumo de memória em segundo plano quando não estiver em uso):
 
 ```bash
-# Iniciar o Portainer e abrir no navegador do Windows automaticamente:
+# Iniciar o Portainer de forma segura (isolado em localhost 127.0.0.1):
 portainer
+
+# Iniciar o Portainer exposto na rede local (para testar via celular ou outro PC):
+portainer --lan
 
 # Se o Portainer solicitar o Setup Token no primeiro acesso, veja-o com:
 portainer token
@@ -182,6 +185,8 @@ portainer stop-all
 ```
 
 **Principais recursos:**
+- **Isolamento e Segurança de Rede:** Vinculado exclusivamente ao loopback `127.0.0.1:9000` por padrão. Ninguém na sua rede Wi-Fi/LAN consegue acessar seu socket Docker sem sua permissão.
+- **Modo LAN Opcional (`--lan`):** Permite expor temporariamente em `0.0.0.0` se você precisar testar stacks em outros aparelhos.
 - **URL Direta:** Abre em `http://localhost:9000` sem avisos de certificado SSL.
 - **Persistência Segura:** Utiliza o volume permanente `portainer_data` para guardar senhas e stacks para sempre.
 - **Sem Inicialização no Boot:** Criado com `--restart=no` para nunca ligar sozinho consumindo recursos do seu PC.
