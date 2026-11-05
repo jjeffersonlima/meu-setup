@@ -1,4 +1,4 @@
-name: CI - Qualidade e Testes Determinísticos
+name: CI - Reparo e uso do ambiente
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   lint-and-smoke:
+    timeout-minutes: 5
     name: Linting & Smoke Tests
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +25,8 @@ jobs:
         run: ./tests/smoke.sh
 
   e2e-docker:
-    name: Testes End-to-End no Docker (Ubuntu Limpo + Idempotência)
+    timeout-minutes: 25
+    name: Instalação e templates em Ubuntu descartável
     needs: lint-and-smoke
     runs-on: ubuntu-latest
     steps:
@@ -32,6 +34,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Executar Suíte E2E em Container Docker
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tests/e2e_docker.sh
+
+      - name: Verificar PostgreSQL e preservação de dados do Portainer
+        run: ./tests/docker_services.sh

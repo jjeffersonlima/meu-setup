@@ -1,24 +1,18 @@
-.PHONY: test test-fast lint smoke e2e help
-
+.PHONY: test test-fast lint smoke e2e test-services help
 help:
-	@echo "Comandos disponíveis no meu-setup:"
-	@echo "  make test        Executa todas as camadas: Lint + Smoke + E2E Docker"
-	@echo "  make test-fast   Executa validações rápidas locais (Lint + Smoke, ~2s)"
-	@echo "  make lint        Executa validação de sintaxe e ShellCheck"
-	@echo "  make smoke       Executa testes de interface CLI e módulos isolados"
-	@echo "  make e2e         Executa testes End-to-End determinísticos no Docker"
-
+	@echo "make test-fast: verificações locais sem rede/sudo"
+	@echo "make e2e: instalação e templates em Ubuntu descartável (Docker/rede)"
+	@echo "make test-services: PostgreSQL e Portainer isolados (Docker/rede)"
+	@echo "make test: testes locais + integração da instalação"
 test:
 	@./tests/run.sh
-
 test-fast:
 	@./tests/run.sh --fast
-
 lint:
 	@./tests/lint.sh
-
 smoke:
 	@./tests/smoke.sh
-
 e2e:
 	@./tests/e2e_docker.sh
+test-services:
+	@./tests/docker_services.sh

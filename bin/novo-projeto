@@ -1,333 +1,136 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# meu-setup: novo-projeto
-# Utilitário para inicializar rapidamente projetos de automações, sites e apps.
-# Suporta execução interativa e argumentos de linha de comando.
-# ==============================================================================
-
-set -e
-
-# Cores para o terminal
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-mostrar_banner() {
-    if [ -t 1 ]; then
-        echo -e "${CYAN}"
-        echo "  ╔══════════════════════════════════════════════════╗"
-        echo "  ║            🚀 Gerador de Novos Projetos          ║"
-        echo "  ║                   meu-setup                      ║"
-        echo "  ╚══════════════════════════════════════════════════╝"
-        echo -e "${NC}"
-    fi
+# meu-setup: gerador de projetos para estudo. Nunca sobrescreve um destino existente.
+set -Eeuo pipefail
+DIR_SETUP="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+# shellcheck source=lib/common.sh
+source "$DIR_SETUP/lib/common.sh"
+# shellcheck source=configs/versions.env
+source "$DIR_SETUP/configs/versions.env"
+help() {
+    cat <<'HELP'
+Uso: novo-projeto [astro|python|node|docker] [nome]
+  ou novo-projeto --type TIPO --name NOME
+Sem argumentos, abre o menu. Use letras minúsculas, números, - e _ no nome.
+HELP
 }
-
-mostrar_ajuda() {
-    echo "Uso: novo-projeto [TIPO] [NOME]"
-    echo "  ou: novo-projeto --type [TIPO] --name [NOME]"
-    echo ""
-    echo "Tipos disponíveis:"
-    echo "  astro     Site moderno com Astro"
-    echo "  python    Projeto de automação ou script Python com uv"
-    echo "  node      Projeto Node.js com TypeScript e tsx"
-    echo "  docker    Ambiente Docker Compose (PostgreSQL + Redis)"
-    echo ""
-    echo "Exemplos:"
-    echo "  novo-projeto python meu-bot"
-    echo "  novo-projeto astro meu-blog"
-    echo "  novo-projeto node api-vendas"
-    echo "  novo-projeto docker infra-banco"
-}
-
-validar_nome_projeto() {
-    local n="$1"
-    if [ -z "$n" ]; then
-        echo -e "${RED}Erro: Nome do projeto não pode ser vazio!${NC}"
-        exit 1
-    fi
-    if [[ ! "$n" =~ ^[a-zA-Z0-9._-]+$ ]] || [[ "$n" == ".." ]] || [[ "$n" == "." ]]; then
-        echo -e "${RED}Erro: Nome de projeto inválido: '$n'${NC}"
-        echo -e "${YELLOW}Use apenas letras, números, hífen (-), ponto (.) e underline (_), sem barras de diretório.${NC}"
-        exit 1
-    fi
-}
-
-criar_projeto_astro() {
-    local nome="$1"
-    echo -e "\n${BLUE}▶ Criando site com Astro: ${YELLOW}$nome${NC}"
-    
-    if command -v pnpm >/dev/null 2>&1; then
-        pnpm create astro@latest "$nome"
-    elif command -v npm >/dev/null 2>&1; then
-        npm create astro@latest "$nome"
-    else
-        echo -e "${RED}Erro: pnpm ou npm não foram encontrados! Execute o install.sh primeiro.${NC}"
-        exit 1
-    fi
-
-    echo -e "\n${GREEN}✔ Projeto Astro '$nome' criado com sucesso!${NC}"
-    echo -e "${YELLOW}Para começar:${NC}"
-    echo -e "  cd $nome"
-    echo -e "  pnpm dev (ou npm run dev)\n"
-}
-
-criar_projeto_python() {
-    local nome="$1"
-    echo -e "\n${BLUE}▶ Criando projeto de automação/app Python: ${YELLOW}$nome${NC}"
-    mkdir -p "$nome"
-    cd "$nome"
-
-    if command -v uv >/dev/null 2>&1; then
-        uv init --app
-        echo -e "${GREEN}✔ Projeto inicializado com uv (super rápido).${NC}"
-    else
-        python3 -m venv .venv
-        echo "print('Olá do seu novo projeto de automação!')" > main.py
-        echo "# $nome" > README.md
-        echo -e "${GREEN}✔ Projeto inicializado com python3-venv.${NC}"
-    fi
-
-    if [ ! -f .gitignore ]; then
-        cat << 'EOF' > .gitignore
-.venv/
-__pycache__/
-*.pyc
-.env
-EOF
-    fi
-
-    # Cria arquivo .env de exemplo
-    cat << 'EOF' > .env.example
-# Variáveis de ambiente do projeto
-AMBIENTE=desenvolvimento
-API_KEY=sua_chave_aqui
-EOF
-
-    if command -v git >/dev/null 2>&1 && [ ! -d .git ]; then
-        git init -b main >/dev/null 2>&1 || git init >/dev/null 2>&1
-    fi
-
-    echo -e "\n${GREEN}✔ Projeto Python '$nome' pronto!${NC}"
-    echo -e "${YELLOW}Para começar:${NC}"
-    echo -e "  cd $nome"
-    if command -v uv >/dev/null 2>&1; then
-        echo -e "  uv run hello.py (ou main.py)"
-        echo -e "  uv add requests (para adicionar pacotes como o requests)"
-    else
-        echo -e "  source .venv/bin/activate"
-        echo -e "  python3 main.py"
-    fi
-    echo ""
-}
-
-criar_projeto_docker() {
-    local nome="$1"
-    echo -e "\n${BLUE}▶ Criando projeto com Docker Compose: ${YELLOW}$nome${NC}"
-    mkdir -p "$nome"
-    cd "$nome"
-
-    cat << 'EOF' > docker-compose.yml
-services:
-  # Exemplo de banco de dados PostgreSQL pronto para uso (isolado em 127.0.0.1)
-  postgres:
-    image: postgres:16-alpine
-    container_name: app_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: usuario
-      POSTGRES_PASSWORD: senha_segura
-      POSTGRES_DB: meu_banco
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  # Exemplo de cache Redis (isolado em 127.0.0.1)
-  redis:
-    image: redis:alpine
-    container_name: app_redis
-    ports:
-      - "127.0.0.1:6379:6379"
-
-volumes:
-  pgdata:
-EOF
-
-    cat << 'EOF' > README.md
-# Ambiente Dockerizado
-
-Este diretório contém uma estrutura com PostgreSQL e Redis prontos para conectar em seus sites ou automações.
-
-## Comandos rápidos:
-- Subir os containers: \`docker compose up -d\`
-- Ver logs: \`docker compose logs -f\`
-- Parar containers: \`docker compose down\`
-EOF
-
-    if command -v git >/dev/null 2>&1 && [ ! -d .git ]; then
-        git init -b main >/dev/null 2>&1 || git init >/dev/null 2>&1
-    fi
-
-    echo -e "\n${GREEN}✔ Projeto Docker Compose '$nome' pronto!${NC}"
-    echo -e "${YELLOW}Para rodar os serviços:${NC}"
-    echo -e "  cd $nome"
-    echo -e "  docker compose up -d\n"
-}
-
-criar_projeto_node() {
-    local nome="$1"
-    echo -e "\n${BLUE}▶ Criando projeto Node.js / TypeScript: ${YELLOW}$nome${NC}"
-    mkdir -p "$nome"
-    cd "$nome"
-
-    if command -v pnpm >/dev/null 2>&1; then
-        pnpm init
-        pnpm add -D typescript @types/node tsx 2>/dev/null || true
-    else
-        npm init -y
-        npm install --save-dev typescript @types/node tsx 2>/dev/null || true
-    fi
-
-    mkdir -p src
-    cat << 'EOF' > src/index.ts
-console.log("🚀 Olá mundo do Node.js + TypeScript!");
-EOF
-
-    cat << 'EOF' > .gitignore
-node_modules/
-dist/
-.env
-EOF
-
-    if command -v git >/dev/null 2>&1 && [ ! -d .git ]; then
-        git init -b main >/dev/null 2>&1 || git init >/dev/null 2>&1
-    fi
-
-    echo -e "\n${GREEN}✔ Projeto Node.js '$nome' pronto!${NC}"
-    echo -e "${YELLOW}Para rodar:${NC}"
-    echo -e "  cd $nome"
-    echo -e "  npx tsx src/index.ts\n"
-}
-
-# --- Processamento de Argumentos CLI ---
-tipo=""
-nome=""
-
-while [[ $# -gt 0 ]]; do
+tipo="" nome=""
+while (($#)); do
     case "$1" in
-        -h|--help)
-            mostrar_ajuda
-            exit 0
-            ;;
-        --type)
-            tipo="$2"
-            shift 2
-            ;;
-        --name)
-            nome="$2"
-            shift 2
-            ;;
-        astro|python|node|docker)
-            tipo="$1"
-            if [ -n "${2:-}" ] && [[ "$2" != -* ]]; then
-                nome="$2"
-                shift 2
-            else
-                shift 1
-            fi
-            ;;
-        *)
-            if [ -z "$tipo" ]; then
-                tipo="$1"
-            elif [ -z "$nome" ]; then
-                nome="$1"
-            fi
-            shift
-            ;;
+        -h|--help) help; exit 0 ;;
+        --type|--name)
+            [ "$#" -ge 2 ] && [[ "$2" != -* ]] || { echo "Informe o valor após $1." >&2; exit 2; }
+            if [ "$1" = --type ]; then tipo="$2"; else nome="$2"; fi
+            shift 2 ;;
+        -*) echo "Opção desconhecida: $1" >&2; exit 2 ;;
+        *) if [ -z "$tipo" ]; then tipo="$1"; elif [ -z "$nome" ]; then nome="$1"; else echo 'Argumentos em excesso.' >&2; exit 2; fi; shift ;;
     esac
 done
-
-if [ -n "$tipo" ]; then
-    case "$tipo" in
-        astro)
-            nome=${nome:-meu-site}
-            validar_nome_projeto "$nome"
-            criar_projeto_astro "$nome"
-            exit 0
-            ;;
-        python)
-            nome=${nome:-automacao-python}
-            validar_nome_projeto "$nome"
-            criar_projeto_python "$nome"
-            exit 0
-            ;;
-        node)
-            nome=${nome:-app-node}
-            validar_nome_projeto "$nome"
-            criar_projeto_node "$nome"
-            exit 0
-            ;;
-        docker)
-            nome=${nome:-stack-docker}
-            validar_nome_projeto "$nome"
-            criar_projeto_docker "$nome"
-            exit 0
-            ;;
-        *)
-            echo -e "${RED}Tipo desconhecido: '$tipo'.${NC}"
-            mostrar_ajuda
-            exit 1
-            ;;
-    esac
+if [ -z "$tipo" ]; then
+    [ -t 0 ] || { help >&2; exit 2; }
+    echo '1) Site Astro  2) Automação Python  3) Node/TypeScript  4) Banco Docker  5) Sair'
+    read -rp 'Escolha [1-5]: ' choice
+    case "$choice" in 1) tipo=astro ;; 2) tipo=python ;; 3) tipo=node ;; 4) tipo=docker ;; 5) exit 0 ;; *) echo 'Escolha inválida.' >&2; exit 2 ;; esac
+    read -rp 'Nome do projeto: ' nome
 fi
-
-# Se não foram passados argumentos via CLI, abre o menu interativo
-mostrar_banner
-
-echo -e "Escolha o tipo de projeto que deseja criar:\n"
-echo -e "  ${YELLOW}1)${NC} 🌐 Site moderno com ${GREEN}Astro${NC} (Recomendado para sites rápidos)"
-echo -e "  ${YELLOW}2)${NC} 🐍 Automação ou App em ${GREEN}Python${NC} (com uv, virtualenv e .env)"
-echo -e "  ${YELLOW}3)${NC} ⬢ Projeto ${GREEN}Node.js + TypeScript${NC} (APIs e sistemas)"
-echo -e "  ${YELLOW}4)${NC} 🐳 Ambiente ${GREEN}Docker Compose${NC} (Banco PostgreSQL + Redis)"
-echo -e "  ${YELLOW}5)${NC} ❌ Sair\n"
-
-read -rp "Opção [1-5]: " opcao
-
-case "$opcao" in
-    1)
-        read -rp "Nome do novo site Astro (ex: meu-site): " nome_proj
-        nome_proj=${nome_proj:-meu-site}
-        validar_nome_projeto "$nome_proj"
-        criar_projeto_astro "$nome_proj"
+case "$tipo" in astro|python|node|docker) ;; *) echo "Tipo desconhecido: $tipo" >&2; exit 2 ;; esac
+nome="${nome:-meu-$tipo}"
+[[ "$nome" =~ ^[a-z][a-z0-9_-]*$ ]] || { echo 'Nome inválido: use letras minúsculas, números, - e _, começando com letra.' >&2; exit 2; }
+if [ -e "$nome" ] || [ -L "$nome" ]; then echo "O destino '$nome' já existe. Escolha outro nome; seus arquivos foram preservados." >&2; exit 1; fi
+setup_environment
+# Verifica pré-requisitos antes de criar qualquer arquivo.
+case "$tipo" in
+    python) setup_native uv || { echo 'uv não encontrado. Execute o instalador e selecione Python.' >&2; exit 1; } ;;
+    node|astro) if ! setup_native node || ! setup_node_compatible || ! setup_native pnpm; then echo 'Node/pnpm Linux ausentes. Execute o instalador e selecione Node.' >&2; exit 1; fi ;;
+esac
+mkdir -- "$nome"
+project_dir="$(pwd)/$nome"
+status=0
+trap 'status=$?; echo "Criação interrompida. A pasta $project_dir foi preservada para inspeção; não está pronta. Código: $status." >&2; exit "$status"' ERR
+cd -- "$nome"
+case "$tipo" in
+    python)
+        timeout 60 uv init --app --no-package --vcs none
+        cp "$DIR_SETUP/templates/python-automacao/main.py" main.py
+        printf 'AMBIENTE=desenvolvimento\nAPI_KEY=sua_chave_aqui\n' > .env.example
+        run='uv run main.py'
         ;;
-    2)
-        read -rp "Nome do projeto Python (ex: automacao-dados): " nome_proj
-        nome_proj=${nome_proj:-automacao-python}
-        validar_nome_projeto "$nome_proj"
-        criar_projeto_python "$nome_proj"
+    node)
+        python3 - "$nome" "$TYPESCRIPT_VERSION" "$TSX_VERSION" "$NODE_TYPES_VERSION" <<'PY'
+import json, pathlib, sys
+name, typescript, tsx, node_types = sys.argv[1:]
+config = {'name': name.replace('_', '-'), 'version': '0.1.0', 'private': True, 'type': 'module',
+          'scripts': {'dev': 'tsx src/index.ts', 'start': 'tsx src/index.ts', 'check': 'tsc --noEmit'},
+          'devDependencies': {'typescript': typescript, 'tsx': tsx, '@types/node': node_types}}
+pathlib.Path('package.json').write_text(json.dumps(config, indent=2) + '\n')
+pathlib.Path('tsconfig.json').write_text(json.dumps({'compilerOptions': {'target': 'ES2022', 'module': 'NodeNext', 'moduleResolution': 'NodeNext', 'strict': True, 'skipLibCheck': True}, 'include': ['src']}, indent=2) + '\n')
+PY
+        mkdir src
+        echo 'console.log("Olá! Seu projeto Node.js + TypeScript está funcionando.");' > src/index.ts
+        printf 'allowBuilds:\n  esbuild: true\n' > pnpm-workspace.yaml
+        timeout 240 pnpm install --config.fetchRetries=2 --config.fetchTimeout=30000
+        timeout 30 pnpm check
+        run='pnpm dev'
         ;;
-    3)
-        read -rp "Nome do projeto Node (ex: minha-api): " nome_proj
-        nome_proj=${nome_proj:-app-node}
-        validar_nome_projeto "$nome_proj"
-        criar_projeto_node "$nome_proj"
+    astro)
+        cp -R "$DIR_SETUP/templates/astro/." .
+        python3 - "$nome" "$ASTRO_VERSION" <<'PYASTRO'
+import json, pathlib, sys
+name, version = sys.argv[1:]
+pathlib.Path('package.json').write_text(json.dumps({'name': name.replace('_', '-'), 'version': '0.1.0',
+    'private': True, 'type': 'module', 'scripts': {'dev': 'astro dev', 'build': 'astro build', 'preview': 'astro preview'},
+    'dependencies': {'astro': version}}, indent=2) + '\n')
+pathlib.Path('tsconfig.json').write_text('{"extends":"astro/tsconfigs/strict"}\n')
+PYASTRO
+        printf 'allowBuilds:\n  esbuild: true\n  sharp: true\n' > pnpm-workspace.yaml
+        timeout 240 pnpm install --config.fetchRetries=2 --config.fetchTimeout=30000
+        timeout 120 pnpm build
+        run='pnpm dev'
         ;;
-    4)
-        read -rp "Nome da pasta do ambiente Docker (ex: stack-banco): " nome_proj
-        nome_proj=${nome_proj:-stack-docker}
-        validar_nome_projeto "$nome_proj"
-        criar_projeto_docker "$nome_proj"
-        ;;
-    5)
-        echo -e "${YELLOW}Operação cancelada.${NC}"
-        exit 0
-        ;;
-    *)
-        echo -e "${RED}Opção inválida.${NC}"
-        exit 1
+    docker)
+        cat > docker-compose.yml <<'COMPOSE'
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: estudante
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+      POSTGRES_DB: estudos
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+volumes:
+  pgdata:
+COMPOSE
+        # Credencial local própria de cada projeto, sem sobrescrever arquivos existentes.
+        python3 - <<'PY'
+import pathlib, secrets
+pathlib.Path('.env').write_text('POSTGRES_PASSWORD=' + secrets.token_urlsafe(24) + '\nPOSTGRES_PORT=5432\nREDIS_PORT=6379\n')
+pathlib.Path('.env').chmod(0o600)
+pathlib.Path('.env.example').write_text('POSTGRES_PASSWORD=escolha_uma_senha\nPOSTGRES_PORT=5432\nREDIS_PORT=6379\n')
+PY
+        run='docker compose up -d'
         ;;
 esac
+# Acrescenta somente padrões ausentes no projeto que acabou de ser criado.
+for pattern in .env .venv/ __pycache__/ node_modules/ dist/; do
+    if ! grep -qxF "$pattern" .gitignore 2>/dev/null; then printf '%s\n' "$pattern" >> .gitignore; fi
+done
+# Cercas Markdown literais.
+# shellcheck disable=SC2016
+printf '# %s\n\nPara começar:\n\n```bash\n%s\n```\n' "$nome" "$run" >> README.md
+if [ "$tipo" = docker ]; then
+    cat >> README.md <<'DOCKER_DOC'
+
+Se uma porta estiver ocupada, altere POSTGRES_PORT ou REDIS_PORT no arquivo .env.
+Pare os serviços com `docker compose down`. Os dados PostgreSQL ficam no volume do projeto.
+DOCKER_DOC
+fi
+if setup_native git && [ ! -e .git ]; then git init -q -b main; fi
+trap - ERR
+printf '\nProjeto %s pronto.\n  cd %s\n  %s\n' "$nome" "$nome" "$run"

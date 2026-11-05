@@ -1,198 +1,139 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# meu-setup: install.sh
-# Automação de ambiente de desenvolvimento moderna, leve e idempotente para WSL.
-# Focado em: Automações, Sites (Astro), Aplicações e Sistemas.
-# ==============================================================================
-
-set -uo pipefail
-
+# meu-setup: instalar e reparar um ambiente pessoal de desenvolvimento.
+set -Eeuo pipefail
 DIR_SETUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIR_LOCAL_BIN="$HOME/.local/bin"
-mkdir -p "$DIR_LOCAL_BIN"
-
-# Sistema de Logs de Instalação (Audit Trail)
-LOG_DIR="$HOME/.local/state/meu-setup/logs"
-mkdir -p "$LOG_DIR"
-chmod 700 "$LOG_DIR" 2>/dev/null || true
-LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="$LOG_DIR/install_${LOG_TIMESTAMP}.log"
-LOG_LATEST="$LOG_DIR/install_latest.log"
-
-# Dual Logging: toda a saída é exibida no terminal e salva no log simultaneamente
-if [ -z "${SETUP_LOGGING_ACTIVE:-}" ]; then
-    export SETUP_LOGGING_ACTIVE=true
-    touch "$LOG_FILE"
-    chmod 600 "$LOG_FILE" 2>/dev/null || true
-    exec > >(tee -a "$LOG_FILE") 2>&1
-    ln -sf "$LOG_FILE" "$LOG_LATEST" 2>/dev/null || true
-fi
-
-# Carrega módulos da pasta lib/
-for modulo in "$DIR_SETUP/lib/"*.sh; do
-    if [ -f "$modulo" ]; then
-        # shellcheck source=/dev/null
-        source "$modulo"
-    fi
-done
+# shellcheck source=lib/common.sh
+source "$DIR_SETUP/lib/common.sh"
+# shellcheck source=lib/log.sh
+source "$DIR_SETUP/lib/log.sh"
 
 mostrar_ajuda() {
-    echo "Uso: ./install.sh [OPÇÕES]"
-    echo ""
-    echo "Opções:"
-    echo "  -y, --yes, --non-interactive  Executa a instalação completa sem prompts interativos"
-    echo "  -c, --custom                  Executa o modo de instalação personalizada [S/n]"
-    echo "  -h, --help                    Exibe esta mensagem de ajuda"
-    echo ""
-    echo "Variáveis de Ambiente Úteis:"
-    echo "  GIT_USER_NAME                 Nome para configuração global do Git"
-    echo "  GIT_USER_EMAIL                E-mail para configuração global do Git"
-    echo "  SETUP_GENERATE_SSH=true|false Controla geração automática de chave SSH Ed25519"
-    echo "  GITHUB_TOKEN                  Token pessoal para contornar rate-limit da API do GitHub"
-}
-
-executar_instalacao_completa() {
-    checar_sudo
-    configurar_wsl_conf
-    otimizar_wslconfig
-    instalar_pacote_essencial
-    instalar_starship
-    instalar_node_e_astro
-    instalar_python_e_uv
-    instalar_docker
-    instalar_lazydocker
-    preparar_portainer
-    instalar_lazygit
-    instalar_zoxide
-    instalar_bat
-    instalar_eza
-    configurar_git
-    configurar_bashrc
-    mostrar_conclusao
-}
-
-executar_instalacao_personalizada() {
-    checar_sudo
-    
-    local r_wsl r_wslcfg r_cli r_star r_node r_py r_dock r_lazy r_port r_lg r_zox r_bat r_eza r_git
-
-    read -rp "Otimizar /etc/wsl.conf com systemd e interop? [S/n]: " r_wsl
-    [[ "${r_wsl:-S}" =~ ^[Ss]$ ]] && configurar_wsl_conf
-
-    read -rp "Otimizar Hipervisor WSL (.wslconfig no Windows para auto-liberação de RAM e disco)? [S/n]: " r_wslcfg
-    [[ "${r_wslcfg:-S}" =~ ^[Ss]$ ]] && otimizar_wslconfig
-
-    read -rp "Instalar Pacote Essencial CLI (curl, git, jq, fzf, ripgrep, build-essential)? [S/n]: " r_cli
-    [[ "${r_cli:-S}" =~ ^[Ss]$ ]] && instalar_pacote_essencial
-
-    read -rp "Instalar Starship Prompt (barra de terminal visual moderna)? [S/n]: " r_star
-    [[ "${r_star:-S}" =~ ^[Ss]$ ]] && instalar_starship
-
-    read -rp "Instalar Node.js LTS, fnm e pnpm (para Astro e sites)? [S/n]: " r_node
-    [[ "${r_node:-S}" =~ ^[Ss]$ ]] && instalar_node_e_astro
-
-    read -rp "Instalar Python e uv (para automações e scripts rápidos)? [S/n]: " r_py
-    [[ "${r_py:-S}" =~ ^[Ss]$ ]] && instalar_python_e_uv
-
-    read -rp "Instalar Docker Engine nativo e Docker Compose? [S/n]: " r_dock
-    [[ "${r_dock:-S}" =~ ^[Ss]$ ]] && instalar_docker
-
-    read -rp "Instalar Lazydocker (painel visual do Docker no terminal)? [S/n]: " r_lazy
-    [[ "${r_lazy:-S}" =~ ^[Ss]$ ]] && instalar_lazydocker
-
-    read -rp "Configurar Portainer CE Sob Demanda (painel web de Stacks na porta 9000)? [S/n]: " r_port
-    [[ "${r_port:-S}" =~ ^[Ss]$ ]] && preparar_portainer
-
-    read -rp "Instalar Lazygit (painel visual de Git no terminal)? [S/n]: " r_lg
-    [[ "${r_lg:-S}" =~ ^[Ss]$ ]] && instalar_lazygit
-
-    read -rp "Instalar Zoxide (navegação inteligente com comando 'z')? [S/n]: " r_zox
-    [[ "${r_zox:-S}" =~ ^[Ss]$ ]] && instalar_zoxide
-
-    read -rp "Instalar Bat (leitor de código colorido em Rust)? [S/n]: " r_bat
-    [[ "${r_bat:-S}" =~ ^[Ss]$ ]] && instalar_bat
-
-    read -rp "Instalar Eza (listagem moderna com ícones e status git em Rust)? [S/n]: " r_eza
-    [[ "${r_eza:-S}" =~ ^[Ss]$ ]] && instalar_eza
-
-    read -rp "Configurar Git, branch 'main', global .gitignore e SSH? [S/n]: " r_git
-    [[ "${r_git:-S}" =~ ^[Ss]$ ]] && configurar_git
-
-    configurar_bashrc
-    mostrar_conclusao
+    cat <<'EOF'
+Uso: ./install.sh [OPÇÕES]
+  -y, --yes           Instala/repara sem menu, lembrando a seleção anterior
+  --update-tools      Atualiza ferramentas até as versões de referência testadas
+  --repair            Repara a instalação e as configurações existentes
+  -c, --custom        Escolhe as ferramentas por finalidade
+  --components LISTA  Seleção explícita, separada por vírgulas (consulte README)
+  --config-only       Repara configurações; não instala pacotes ou ferramentas
+  --docker-boot MODO  Inicialização Docker: keep (padrão), on ou off
+  --user-only         Preserva wsl.conf, .wslconfig e containers existentes
+  --inventory         Mostra o inventário sem alterar arquivos
+  -h, --help          Mostra esta ajuda sem alterar o ambiente
+EOF
 }
 
 main() {
-    local modo=""
-
-    # Processamento de argumentos de linha de comando
-    while [[ $# -gt 0 ]]; do
+    local custom=false inventory=false components_set=false reply component label
+    export SETUP_CONFIG_ONLY=false SETUP_USER_ONLY=false SETUP_NON_INTERACTIVE=false SETUP_UPDATE_TO_REFERENCE=false SETUP_DOCKER_BOOT=keep
+    SETUP_COMPONENTS=""
+    while (($#)); do
         case "$1" in
-            -y|--yes|--non-interactive)
-                export SETUP_NON_INTERACTIVE=true
-                modo="completo"
-                shift
-                ;;
-            -c|--custom)
-                modo="personalizado"
-                shift
-                ;;
-            -h|--help)
-                mostrar_ajuda
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}Opção desconhecida: $1${NC}"
-                mostrar_ajuda
-                exit 1
-                ;;
+            -h|--help) mostrar_ajuda; return 0 ;;
+            -y|--yes|--non-interactive) SETUP_NON_INTERACTIVE=true ;;
+            --repair) : ;;
+            --update-tools) export SETUP_UPDATE_TO_REFERENCE=true ;;
+            -c|--custom) custom=true ;;
+            --config-only) SETUP_CONFIG_ONLY=true ;;
+            --user-only) SETUP_USER_ONLY=true ;;
+            --inventory) inventory=true ;;
+            --docker-boot)
+                [ "$#" -ge 2 ] || { log_erro 'Informe keep, on ou off após --docker-boot.'; return 2; }
+                case "$2" in keep|on|off) export SETUP_DOCKER_BOOT="$2" ;; *) log_erro 'Modo Docker inválido.'; return 2 ;; esac
+                shift ;;
+            --components)
+                [ "$#" -ge 2 ] && [[ "$2" != -* ]] || { log_erro 'Informe a lista após --components.'; return 2; }
+                SETUP_COMPONENTS="$2"; components_set=true; shift ;;
+            *) log_erro "Opção desconhecida: $1"; return 2 ;;
         esac
+        shift
     done
-
-    # Se estiver rodando sem terminal ou se a variável de ambiente pedir não-interativo
-    if [ "${CI:-}" = "true" ] || [ "${DEBIAN_FRONTEND:-}" = "noninteractive" ] || [ ! -t 0 ]; then
-        export SETUP_NON_INTERACTIVE=true
-        [ -z "$modo" ] && modo="completo"
+    if ! command -v python3 >/dev/null; then
+        if [ "$inventory" = true ] || [ "$SETUP_CONFIG_ONLY" = true ]; then
+            log_erro 'Python3 ausente. Execute a instalação completa para preparar o reparo.'; return 1
+        fi
+        log_info 'Preparando Python3 do sistema para a instalação...'
+        setup_admin env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 update
+        setup_admin env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3
+        export SETUP_APT_UPDATED=true
     fi
-
+    setup_environment
+    if [ "$inventory" = true ]; then setup_python inventory; return; fi
+    if [ "$components_set" = false ]; then SETUP_COMPONENTS=$(setup_python components); fi
+    if [ "$custom" = true ]; then
+        [ -t 0 ] || { log_erro '--custom precisa de um terminal; use --components na automação.'; return 2; }
+        SETUP_COMPONENTS=""
+        echo 'Escolha o que quer usar. O reparo preserva seus projetos e dados.'
+        for component in starship node python docker lazydocker portainer lazygit zoxide bat eza git; do
+            case "$component" in
+                node) label='Sites e aplicativos (Node/pnpm)' ;;
+                python) label='Automações (Python/uv)' ;;
+                docker) label='Bancos e containers (Docker/Compose)' ;;
+                lazydocker) label='Painel Docker no terminal' ;;
+                portainer) label='Painel Docker no navegador, sob demanda' ;;
+                git) label='Git e GitHub' ;;
+                *) label="$component (conveniência no terminal)" ;;
+            esac
+            read -rp "Habilitar $label? [S/n]: " reply
+            case "$reply" in n|N) ;; *) SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}$component" ;; esac
+        done
+    elif [ "$SETUP_NON_INTERACTIVE" = false ] && [ -t 0 ]; then
+        echo "Ferramentas selecionadas: ${SETUP_COMPONENTS:-somente atalhos/configuração}"
+        echo 'Instalações anteriores serão reparadas automaticamente. Dados pessoais serão preservados.'
+        read -rp 'Continuar? [S/n]: ' reply
+        case "$reply" in n|N) return 0 ;; esac
+    fi
+    for component in ${SETUP_COMPONENTS//,/ }; do
+        case "$component" in starship|node|python|docker|lazydocker|portainer|lazygit|zoxide|bat|eza|git) ;; *) log_erro "Componente desconhecido: $component"; return 2 ;; esac
+    done
+    if setup_selected lazydocker || setup_selected portainer; then
+        setup_selected docker || SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}docker"
+    fi
+    export SETUP_COMPONENTS
+    setup_lock
+    umask 077
+    mkdir -p "$SETUP_STATE_DIR/logs"
+    LOG_FILE="$SETUP_STATE_DIR/logs/install_$(date +%Y%m%d_%H%M%S)_$$.log"
+    export LOG_FILE
+    exec > >(tee "$LOG_FILE") 2>&1
+    ln -sfn "$(basename "$LOG_FILE")" "$SETUP_STATE_DIR/logs/install_latest.log"
+    # Mantém os 20 logs mais recentes; backups de recuperação não são removidos.
+    setup_python inventory > "$SETUP_STATE_DIR/inventory.json"
+    python3 - "$SETUP_STATE_DIR/logs" <<'PYLOG'
+from pathlib import Path
+import sys
+for path in sorted(Path(sys.argv[1]).glob('install_[0-9]*.log'), key=lambda p: p.stat().st_mtime, reverse=True)[20:]:
+    path.unlink()
+PYLOG
+    local status
+    trap 'status=$?; trap - ERR; log_erro "Reparo interrompido (código $status). Consulte $LOG_FILE e execute novamente após corrigir a causa."; exit "$status"' ERR
+    local module
+    for module in system tools dev_runtimes docker git bashrc conclusao; do
+        # shellcheck source=/dev/null
+        source "$DIR_SETUP/lib/$module.sh"
+    done
     mostrar_banner
     verificar_wsl
-
-    if [ "$modo" = "completo" ]; then
-        executar_instalacao_completa
-        exit 0
-    elif [ "$modo" = "personalizado" ]; then
-        executar_instalacao_personalizada
-        exit 0
+    if [ "$SETUP_CONFIG_ONLY" = false ]; then
+        command -v apt-get >/dev/null || { log_erro 'A instalação de pacotes requer Ubuntu/Debian com APT.'; return 1; }
+        instalar_pacote_essencial
+        setup_selected starship && instalar_starship
+        setup_selected node && instalar_node_e_astro
+        setup_selected python && instalar_python_e_uv
+        setup_selected docker && instalar_docker
+        setup_selected lazydocker && instalar_lazydocker
+        setup_selected lazygit && instalar_lazygit
+        setup_selected zoxide && instalar_zoxide
+        setup_selected bat && instalar_bat
+        setup_selected eza && instalar_eza
     fi
-
-    # Menu interativo padrão caso nenhum argumento tenha sido fornecido
-    echo -e "Como você gostaria de prosseguir?\n"
-    echo -e "  ${YELLOW}1)${NC} ${BOLD}Instalação Completa Recomendada${NC} (Instala tudo de forma rápida e segura)"
-    echo -e "  ${YELLOW}2)${NC} ${BOLD}Instalação Personalizada${NC} (Pergunta ferramenta por ferramenta [S/n])"
-    echo -e "  ${YELLOW}3)${NC} Sair\n"
-
-    read -rp "Escolha uma opção [1-3]: " modo_instalacao
-    modo_instalacao=${modo_instalacao:-1}
-
-    case "$modo_instalacao" in
-        1)
-            executar_instalacao_completa
-            ;;
-        2)
-            executar_instalacao_personalizada
-            ;;
-        3)
-            echo -e "${YELLOW}Instalação abortada pelo usuário.${NC}"
-            exit 0
-            ;;
-        *)
-            log_erro "Opção inválida. Execução cancelada."
-            exit 1
-            ;;
-    esac
+    # As migrações rodam mesmo se todas as ferramentas já estiverem instaladas.
+    configurar_bashrc
+    setup_selected git && configurar_git
+    if [ "$SETUP_USER_ONLY" = false ]; then configurar_wsl_conf; otimizar_wslconfig; fi
+    setup_selected portainer && preparar_portainer
+    mostrar_conclusao
+    setup_python finalize --components "$SETUP_COMPONENTS"
+    trap - ERR
 }
-
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

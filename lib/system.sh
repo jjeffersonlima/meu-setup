@@ -1,199 +1,85 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# meu-setup: lib/system.sh
-# Módulo de verificação do sistema WSL, permissões sudo e pacotes básicos.
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
-# Detecção de Ambiente WSL
-# ------------------------------------------------------------------------------
+# Sistema e configurações WSL. Falhas de instalação são propagadas.
 verificar_wsl() {
-    log_secao "Verificando ambiente do sistema"
-    if grep -qi "microsoft" /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
-        log_sucesso "Detectado ambiente: ${BOLD}Linux sob WSL (${WSL_DISTRO_NAME:-Ubuntu})${NC}"
-    else
-        log_aviso "Aviso: Ambiente Linux nativo ou container detectado. O script funcionará normalmente!"
-    fi
+    if setup_is_wsl; then
+        log_info "WSL detectado: ${WSL_DISTRO_NAME:-Linux}."
+    else log_info 'Linux/container: configurações exclusivas do WSL serão ignoradas.'; fi
 }
-
-# ------------------------------------------------------------------------------
-# Solicitar credenciais Sudo antecipadamente (apenas se necessário)
-# ------------------------------------------------------------------------------
 checar_sudo() {
+    command -v apt-get >/dev/null || { log_erro 'Este instalador suporta distribuições Ubuntu/Debian com APT.'; return 1; }
     if [ "$EUID" -ne 0 ]; then
-        log_info "Alguns pacotes do sistema precisam de privilégios de administrador (sudo)."
-        if sudo -v 2>/dev/null; then
-            # Mantém o token do sudo vivo durante a execução e registra PID para encerramento limpo
-            ( while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null ) &
-            SETUP_SUDO_PID=$!
-            trap 'kill $SETUP_SUDO_PID 2>/dev/null || true' EXIT INT TERM
-        else
-            log_erro "Não foi possível obter permissões de sudo. Algumas etapas podem falhar."
-        fi
+        if [ "${SETUP_NON_INTERACTIVE:-false}" = true ]; then sudo -n -v; else sudo -v; fi
     fi
 }
-
-# ------------------------------------------------------------------------------
-# Executar apt-get update uma única vez de forma compartilhada
-# ------------------------------------------------------------------------------
 executar_apt_update() {
-    if [ "${SETUP_APT_UPDATED:-false}" != "true" ]; then
-        log_info "Atualizando catálogo de pacotes do sistema (APT)..."
-        local sudo_cmd=""
-        [ "$EUID" -ne 0 ] && sudo_cmd="sudo"
-        $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get update -y
-        export SETUP_APT_UPDATED=true
+    if [ "${SETUP_APT_UPDATED:-false}" != true ]; then
+        setup_admin env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 update || return $?
+        SETUP_APT_UPDATED=true
     fi
 }
-
-# ------------------------------------------------------------------------------
-# 1. Configuração do WSL (/etc/wsl.conf - systemd)
-# ------------------------------------------------------------------------------
+instalar_pacote_essencial() {
+    local pkg missing=()
+    for pkg in curl git jq fzf ripgrep build-essential unzip ca-certificates python3 python3-venv; do
+        if ! dpkg-query -W -f='${db:Status-Status}' "$pkg" 2>/dev/null | grep -qx installed; then missing+=("$pkg"); fi
+    done
+    if ((${#missing[@]})); then
+        checar_sudo
+        executar_apt_update
+        setup_admin env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+    fi
+}
+setup_is_wsl() {
+    [ ! -e /.dockerenv ] && [ ! -e /run/.containerenv ] && { grep -qi microsoft /proc/version || [ -n "${WSL_DISTRO_NAME:-}" ]; }
+}
 configurar_wsl_conf() {
-    log_secao "1. Otimização do WSL (/etc/wsl.conf)"
-    
-    local wsl_conf="/etc/wsl.conf"
-    local precisa_configurar=false
-
-    if [ ! -f "$wsl_conf" ] || ! grep -q "systemd=true" "$wsl_conf" 2>/dev/null; then
-        precisa_configurar=true
-    fi
-
-    if [ "$precisa_configurar" = true ]; then
-        log_info "Habilitando systemd e interoperação no WSL para suporte total ao Docker e serviços..."
-        local sudo_cmd=""
-        if [ "$EUID" -ne 0 ]; then
-            sudo_cmd="sudo"
+    setup_is_wsl || return 0
+    local target="${SETUP_WSL_CONF:-/etc/wsl.conf}" temp
+    temp=$(mktemp)
+    if ! setup_python ini "$target" --kind wsl --output "$temp"; then rm -f "$temp"; return 1; fi
+    if ! cmp -s "$temp" "$target"; then
+        setup_backup "$target" >/dev/null
+        local staged
+        staged=$(setup_admin mktemp "$(dirname "$target")/.meu-setup-wsl.XXXXXX")
+        if ! setup_admin install -m 644 "$temp" "$staged" || ! setup_admin mv -f "$staged" "$target"; then
+            setup_admin rm -f "$staged"; rm -f "$temp"; return 1
         fi
-
-        $sudo_cmd bash -c "cat >> $wsl_conf" << 'EOF'
-
-[boot]
-systemd=true
-
-[interop]
-enabled=true
-appendWindowsPath=true
-
-[automount]
-enabled=true
-options="metadata,umask=22,fmask=11"
-EOF
-        log_sucesso "Arquivo /etc/wsl.conf configurado com systemd ativado!"
-        log_aviso "Lembrete: Após a instalação, você pode reiniciar o WSL no Windows PowerShell com: wsl --shutdown"
-    else
-        log_pulado "systemd já está ativo em /etc/wsl.conf"
+        log_aviso 'systemd configurado. Aplique reiniciando o WSL pelo Windows quando terminar seu trabalho.'
     fi
+    rm -f "$temp"
 }
-
-# ------------------------------------------------------------------------------
-# 1.1 Configuração do Hipervisor WSL (.wslconfig no Windows - WSL 2 e WSL 3)
-# ------------------------------------------------------------------------------
 otimizar_wslconfig() {
-    log_secao "1.1 Otimização do Hipervisor WSL (.wslconfig no Windows)"
-
-    local win_user_profile=""
-    local wslconfig_path=""
-
-    if command -v cmd.exe >/dev/null 2>&1; then
-        local raw_profile
-        raw_profile=$(cmd.exe /c "echo %USERPROFILE%" 2>/dev/null | tr -d '\r\n' || true)
-        if [ -n "$raw_profile" ] && command -v wslpath >/dev/null 2>&1; then
-            win_user_profile=$(wslpath "$raw_profile" 2>/dev/null || true)
-        fi
+    setup_is_wsl || return 0
+    local profile="${SETUP_WINDOWS_PROFILE:-}" raw temp target
+    if [ -z "$profile" ] && command -v cmd.exe >/dev/null && command -v wslpath >/dev/null; then
+        raw=$(timeout 10 cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r\n') || raw=""
+        if [[ "$raw" =~ ^[A-Za-z]:\\ ]]; then profile=$(wslpath "$raw"); fi
     fi
-
-    # Fallback caso wslpath ou cmd.exe não responda diretamente
-    if [ -z "$win_user_profile" ] && [ -d "/mnt/c/Users" ]; then
-        for u in /mnt/c/Users/*; do
-            local base
-            base="$(basename "$u")"
-            if [ -d "$u" ] && [ "$base" != "Public" ] && [ "$base" != "Default" ] && [ "$base" != "All Users" ] && [ "$base" != "Default User" ]; then
-                win_user_profile="$u"
-                break
-            fi
-        done
-    fi
-
-    if [ -z "$win_user_profile" ] || [ ! -d "$win_user_profile" ]; then
-        log_pulado "Perfil do Windows não detectado (ambiente Linux nativo ou container). Pulando .wslconfig."
+    if [ -z "$profile" ] || [ ! -d "$profile" ]; then
+        log_aviso 'Perfil Windows não identificado com segurança. .wslconfig preservado; configure SETUP_WINDOWS_PROFILE se necessário.'
         return 0
     fi
-
-    wslconfig_path="$win_user_profile/.wslconfig"
-    local precisa_atualizar=false
-
-    if [ ! -f "$wslconfig_path" ]; then
-        precisa_atualizar=true
-    elif ! grep -qi "\[experimental\]" "$wslconfig_path" 2>/dev/null || ! grep -qi "autoMemoryReclaim" "$wslconfig_path" 2>/dev/null; then
-        precisa_atualizar=true
+    target="$profile/.wslconfig"
+    temp=$(mktemp)
+    if ! setup_python ini "$target" --kind windows --output "$temp"; then rm -f "$temp"; return 1; fi
+    if ! cmp -s "$temp" "$target"; then
+        setup_backup "$target" >/dev/null
+        # Gravação e substituição no mesmo filesystem do destino.
+        if ! python3 - "$temp" "$target" <<'PYCONF'
+import os, pathlib, sys, tempfile
+source, target = map(pathlib.Path, sys.argv[1:])
+fd, name = tempfile.mkstemp(prefix='.meu-setup-', dir=target.parent)
+try:
+    with os.fdopen(fd, 'wb') as stream:
+        stream.write(source.read_bytes())
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(name, target.stat().st_mode & 0o777 if target.exists() else 0o600)
+    os.replace(name, target)
+finally:
+    if os.path.exists(name): os.unlink(name)
+PYCONF
+        then rm -f "$temp"; return 1; fi
+        log_aviso '.wslconfig reparado preservando seus limites e rede. Reinicie o WSL quando terminar.'
     fi
-
-    if [ "$precisa_atualizar" = true ]; then
-        log_info "Configurando .wslconfig em $wslconfig_path para alta performance..."
-
-        if [ -f "$wslconfig_path" ]; then
-            local backup_file
-            backup_file="${wslconfig_path}.backup.$(date +%Y%m%d_%H%M%S)"
-            cp "$wslconfig_path" "$backup_file" 2>/dev/null || true
-            log_info "Backup do .wslconfig anterior criado em: $(basename "$backup_file")"
-        fi
-
-        cat << 'EOF' > "$wslconfig_path"
-# ==============================================================================
-# Otimizações de Performance do WSL (WSL 2 e WSL 3) - meu-setup
-# Documentação: https://learn.microsoft.com/windows/wsl/wsl-config
-# ==============================================================================
-
-[wsl2]
-# Modo de rede espelhada de alto desempenho (latência mínima e loopback nativo)
-networkingMode=mirrored
-
-# Resolução de DNS tunelada para compatibilidade perfeita com VPNs
-dnsTunneling=true
-
-# Compartilhamento transparente de proxy do Windows
-autoProxy=true
-
-[experimental]
-# Libera automaticamente a memória RAM ociosa de volta para o Windows
-autoMemoryReclaim=gradual
-
-# Compacta automaticamente o disco virtual ext4.vhdx após limpezas (Docker/npm/uv)
-sparseVhd=true
-EOF
-        log_sucesso "Arquivo .wslconfig configurado com autoMemoryReclaim, sparseVhd e mirrored networking!"
-        log_aviso "Lembrete: Para aplicar no Windows, execute no PowerShell: wsl --shutdown"
-    else
-        log_pulado "Otimizações de performance (RAM reclaim e sparseVhd) já estão ativas em .wslconfig"
-    fi
-}
-
-# ------------------------------------------------------------------------------
-# 2. Pacote Essencial de Ferramentas CLI
-# ------------------------------------------------------------------------------
-instalar_pacote_essencial() {
-    log_secao "2. Pacote Essencial de Ferramentas CLI"
-    
-    local pacotes=(curl wget git jq fzf ripgrep build-essential unzip ca-certificates gnupg lsb-release)
-    local pacotes_faltando=()
-
-    for pkg in "${pacotes[@]}"; do
-        if ! dpkg -s "$pkg" >/dev/null 2>&1; then
-            pacotes_faltando+=("$pkg")
-        fi
-    done
-
-    if [ ${#pacotes_faltando[@]} -eq 0 ]; then
-        log_pulado "Todas as ferramentas essenciais já estão instaladas (${pacotes[*]})"
-    else
-        log_info "Instalando ferramentas faltantes: ${YELLOW}${pacotes_faltando[*]}${NC}..."
-        executar_apt_update
-        local sudo_cmd=""
-        if [ "$EUID" -ne 0 ]; then
-            sudo_cmd="sudo"
-        fi
-        $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pacotes_faltando[@]}"
-        log_sucesso "Ferramentas essenciais instaladas com sucesso!"
-    fi
+    rm -f "$temp"
 }

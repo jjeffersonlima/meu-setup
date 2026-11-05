@@ -1,334 +1,74 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# meu-setup: lib/tools.sh
-# Módulo de instalação de ferramentas modernas de CLI e terminal em Rust/Go.
-# Inclui versões estáveis de fallback para garantir determinismo e contornar rate-limits.
-# ==============================================================================
+# Releases explícitos; nenhum binário é substituído antes de ser executado com sucesso.
+# shellcheck source=configs/versions.env
+source "$DIR_SETUP/configs/versions.env"
 
-# Versões estáveis de fallback
-FALLBACK_LAZYDOCKER_VERSION="v0.24.1"
-FALLBACK_LAZYGIT_VERSION="v0.44.1"
-FALLBACK_ZOXIDE_VERSION="v0.9.6"
-FALLBACK_BAT_VERSION="v0.24.0"
-FALLBACK_EZA_VERSION="v0.20.18"
-
-# ------------------------------------------------------------------------------
-# Helper para consultar última tag do GitHub com suporte a token e fallback
-# ------------------------------------------------------------------------------
-obter_tag_github() {
-    local repo="$1"
-    local fallback="$2"
-    local tag=""
-    local auth_header=()
-
-    if [ -n "${GITHUB_TOKEN:-}" ]; then
-        auth_header=(-H "Authorization: Bearer $GITHUB_TOKEN")
-    fi
-
-    tag=$(curl -s "${auth_header[@]}" "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null \
-        | grep '"tag_name":' | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
-
-    if [ -n "$tag" ]; then
-        echo "$tag"
-    else
-        log_info "API do GitHub não respondeu ou atingiu rate-limit. Usando versão estável de fallback: ${fallback}" >&2
-        echo "$fallback"
-    fi
+setup_install_release() (
+    set -euo pipefail
+    local name="$1" repo="$2" asset="$4" tag="${5:-v$3}" temp candidate target staged
+    temp=$(mktemp -d)
+    trap 'rm -rf "$temp"; if [ -n "${staged:-}" ]; then rm -f "$staged"; fi' EXIT
+    setup_download "https://github.com/$repo/releases/download/$tag/$asset" "$temp/archive"
+    # Os digests de assets publicados pelo GitHub são consultados quando disponíveis.
+    # Falha da API não vira falha do download HTTPS; nunca inventar uma validação.
+    if setup_download "https://api.github.com/repos/$repo/releases/tags/$tag" "$temp/release.json"; then
+        python3 - "$temp/release.json" "$asset" "$temp/archive" <<'PYHASH'
+import hashlib, json, pathlib, sys
+release, asset, archive = sys.argv[1:]
+entry = next((a for a in json.loads(pathlib.Path(release).read_text()).get('assets', []) if a['name'] == asset), {})
+digest = entry.get('digest') or ''
+if digest.startswith('sha256:'):
+    if hashlib.sha256(pathlib.Path(archive).read_bytes()).hexdigest() != digest.split(':', 1)[1]:
+        raise SystemExit('Checksum do download não confere.')
+else:
+    print('AVISO: fornecedor não disponibilizou digest deste asset; download via HTTPS.', file=sys.stderr)
+PYHASH
+    else log_aviso "Metadados de checksum indisponíveis para $name; download via HTTPS."; fi
+    mkdir "$temp/extract"
+    if [[ "$asset" == *.zip ]]; then unzip -q "$temp/archive" -d "$temp/extract"
+    else tar -xf "$temp/archive" -C "$temp/extract" --no-same-owner; fi
+    candidate=$(find "$temp/extract" -type f -name "$name" -print -quit)
+    [ -n "$candidate" ] || { log_erro "Release não contém $name."; exit 1; }
+    chmod +x "$candidate"
+    timeout 10 "$candidate" --version >/dev/null
+    target="${6:-$DIR_LOCAL_BIN/$name}"
+    setup_backup "$target" >/dev/null
+    mkdir -p "$(dirname "$target")"
+    staged=$(mktemp "$(dirname "$target")/.$name.XXXXXX")
+    install -m 755 "$candidate" "$staged"
+    mv -f "$staged" "$target"
+    log_sucesso "$name instalado e executado com sucesso."
+)
+setup_arch() {
+    case "$(uname -m)" in x86_64) echo x86_64 ;; aarch64|arm64) echo aarch64 ;; *) log_erro 'Arquitetura não suportada.' >&2; return 1 ;; esac
 }
-
-# ------------------------------------------------------------------------------
-# 3. Prompt Starship & Customização do Terminal
-# ------------------------------------------------------------------------------
 instalar_starship() {
-    log_secao "3. Prompt Moderno: Starship"
-
-    if command -v starship >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/starship" ]; then
-        log_pulado "Starship prompt já está instalado ($("$DIR_LOCAL_BIN/starship" --version 2>/dev/null || starship --version 2>/dev/null | head -n 1))"
-    else
-        log_info "Instalando o Starship (prompt ultra-rápido em Rust)..."
-        mkdir -p "$DIR_LOCAL_BIN"
-        if curl -sS https://starship.rs/install.sh | sh -s -- -y -b "$DIR_LOCAL_BIN" >/dev/null 2>&1; then
-            log_sucesso "Starship instalado em $DIR_LOCAL_BIN/starship!"
-        else
-            log_aviso "Falha ao instalar o Starship via script oficial. Tentando fallback ou ignorando."
-        fi
-    fi
-
-    # Configuração do starship.toml
-    mkdir -p "$HOME/.config"
-    if [ -f "$DIR_SETUP/configs/starship.toml" ]; then
-        cp "$DIR_SETUP/configs/starship.toml" "$HOME/.config/starship.toml"
-        log_sucesso "Configuração do Starship copiada para ~/.config/starship.toml"
-    fi
+    if setup_reuse_tool starship "$STARSHIP_VERSION"; then log_pulado 'Starship funcional.'; return; fi
+    local arch; arch=$(setup_arch)
+    setup_install_release starship starship/starship "$STARSHIP_VERSION" "starship-$arch-unknown-linux-musl.tar.gz"
 }
-
-# ------------------------------------------------------------------------------
-# 7. Lazydocker (Docker Visual no Terminal)
-# ------------------------------------------------------------------------------
 instalar_lazydocker() {
-    log_secao "7. Lazydocker (Interface Visual Leve para Docker)"
-
-    mkdir -p "$DIR_LOCAL_BIN"
-
-    if command -v lazydocker >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazydocker" ]; then
-        log_pulado "Lazydocker já está instalado em $DIR_LOCAL_BIN/lazydocker"
-        return
-    fi
-
-    log_info "Instalando Lazydocker (painel visual do Docker no terminal)..."
-    local arch
-    arch="$(uname -m)"
-    local lazy_arch=""
-    case "$arch" in
-        x86_64) lazy_arch="x86_64" ;;
-        aarch64|arm64) lazy_arch="arm64" ;;
-        *) lazy_arch="" ;;
-    esac
-
-    if [ -z "$lazy_arch" ]; then
-        log_aviso "Arquitetura '$arch' não suportada automaticamente para Lazydocker. Pulando."
-        return
-    fi
-
-    local tag
-    tag=$(obter_tag_github "jesseduffield/lazydocker" "$FALLBACK_LAZYDOCKER_VERSION")
-
-    local tar_file="lazydocker_${tag#v}_Linux_${lazy_arch}.tar.gz"
-    local download_url="https://github.com/jesseduffield/lazydocker/releases/download/${tag}/${tar_file}"
-    local temp_dir
-    temp_dir=$(mktemp -d)
-
-    if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
-        tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" lazydocker 2>/dev/null || true
-        if [ -f "$temp_dir/lazydocker" ]; then
-            mv "$temp_dir/lazydocker" "$DIR_LOCAL_BIN/lazydocker"
-            chmod +x "$DIR_LOCAL_BIN/lazydocker"
-        fi
-    fi
-    rm -rf "$temp_dir"
-
-    if [ -f "$DIR_LOCAL_BIN/lazydocker" ]; then
-        chmod +x "$DIR_LOCAL_BIN/lazydocker"
-        log_sucesso "Lazydocker instalado com sucesso em $DIR_LOCAL_BIN/lazydocker!"
-    else
-        log_aviso "Não foi possível baixar o Lazydocker automaticamente."
-    fi
+    if setup_reuse_tool lazydocker "$LAZYDOCKER_VERSION"; then log_pulado 'Lazydocker funcional.'; return; fi
+    local arch; arch=$(setup_arch); [ "$arch" != aarch64 ] || arch=arm64
+    setup_install_release lazydocker jesseduffield/lazydocker "$LAZYDOCKER_VERSION" "lazydocker_${LAZYDOCKER_VERSION}_Linux_$arch.tar.gz"
 }
-
-# ------------------------------------------------------------------------------
-# 8. Lazygit (Interface Visual de Git no Terminal)
-# ------------------------------------------------------------------------------
 instalar_lazygit() {
-    log_secao "8. Lazygit (Interface Visual Leve para Git)"
-
-    mkdir -p "$DIR_LOCAL_BIN"
-
-    if command -v lazygit >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/lazygit" ]; then
-        log_pulado "Lazygit já está instalado em $DIR_LOCAL_BIN/lazygit"
-        return
-    fi
-
-    log_info "Instalando Lazygit (painel visual do Git no terminal)..."
-    local arch
-    arch="$(uname -m)"
-    local lg_arch=""
-    case "$arch" in
-        x86_64) lg_arch="x86_64" ;;
-        aarch64|arm64) lg_arch="arm64" ;;
-        *) lg_arch="" ;;
-    esac
-
-    if [ -z "$lg_arch" ]; then
-        log_aviso "Arquitetura '$arch' não suportada automaticamente para Lazygit. Pulando."
-        return
-    fi
-
-    local tag
-    tag=$(obter_tag_github "jesseduffield/lazygit" "$FALLBACK_LAZYGIT_VERSION")
-
-    local tar_file="lazygit_${tag#v}_linux_${lg_arch}.tar.gz"
-    local download_url="https://github.com/jesseduffield/lazygit/releases/download/${tag}/${tar_file}"
-    local temp_dir
-    temp_dir=$(mktemp -d)
-
-    if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
-        tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" lazygit 2>/dev/null || true
-        if [ -f "$temp_dir/lazygit" ]; then
-            mv "$temp_dir/lazygit" "$DIR_LOCAL_BIN/lazygit"
-            chmod +x "$DIR_LOCAL_BIN/lazygit"
-        fi
-    fi
-    rm -rf "$temp_dir"
-
-    if [ -f "$DIR_LOCAL_BIN/lazygit" ]; then
-        chmod +x "$DIR_LOCAL_BIN/lazygit"
-        log_sucesso "Lazygit instalado com sucesso em $DIR_LOCAL_BIN/lazygit!"
-    else
-        log_aviso "Não foi possível baixar o Lazygit automaticamente."
-    fi
+    if setup_reuse_tool lazygit "$LAZYGIT_VERSION"; then log_pulado 'Lazygit funcional.'; return; fi
+    local arch; arch=$(setup_arch); [ "$arch" != aarch64 ] || arch=arm64
+    setup_install_release lazygit jesseduffield/lazygit "$LAZYGIT_VERSION" "lazygit_${LAZYGIT_VERSION}_linux_$arch.tar.gz"
 }
-
-# ------------------------------------------------------------------------------
-# 9. Zoxide (Navegação Inteligente entre Diretórios em Rust)
-# ------------------------------------------------------------------------------
 instalar_zoxide() {
-    log_secao "9. Zoxide (Navegação Inteligente com comando 'z')"
-
-    mkdir -p "$DIR_LOCAL_BIN"
-
-    if command -v zoxide >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/zoxide" ]; then
-        log_pulado "Zoxide já está instalado em $DIR_LOCAL_BIN/zoxide"
-        return
-    fi
-
-    log_info "Instalando Zoxide (escrito em Rust, zero processos de fundo)..."
-    local arch
-    arch="$(uname -m)"
-    local z_arch=""
-    case "$arch" in
-        x86_64) z_arch="x86_64" ;;
-        aarch64|arm64) z_arch="aarch64" ;;
-        *) z_arch="" ;;
-    esac
-
-    if [ -n "$z_arch" ]; then
-        local tag
-        tag=$(obter_tag_github "ajeetdsouza/zoxide" "$FALLBACK_ZOXIDE_VERSION")
-        local tar_file="zoxide-${tag#v}-${z_arch}-unknown-linux-musl.tar.gz"
-        local download_url="https://github.com/ajeetdsouza/zoxide/releases/download/${tag}/${tar_file}"
-        local temp_dir
-        temp_dir=$(mktemp -d)
-        if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
-            tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" zoxide 2>/dev/null || true
-            if [ -f "$temp_dir/zoxide" ]; then
-                mv "$temp_dir/zoxide" "$DIR_LOCAL_BIN/zoxide"
-                chmod +x "$DIR_LOCAL_BIN/zoxide"
-            fi
-        fi
-        rm -rf "$temp_dir"
-    fi
-
-    # Fallback para o script oficial do zoxide se o release direto falhar
-    if [ ! -f "$DIR_LOCAL_BIN/zoxide" ]; then
-        log_info "Tentando instalador oficial do Zoxide..."
-        curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | BIN_DIR="$DIR_LOCAL_BIN" sh >/dev/null 2>&1 || true
-    fi
-
-    if [ -f "$DIR_LOCAL_BIN/zoxide" ]; then
-        chmod +x "$DIR_LOCAL_BIN/zoxide"
-        log_sucesso "Zoxide instalado com sucesso em $DIR_LOCAL_BIN/zoxide!"
-    else
-        log_aviso "Não foi possível baixar o Zoxide automaticamente."
-    fi
+    if setup_reuse_tool zoxide "$ZOXIDE_VERSION"; then log_pulado 'Zoxide funcional.'; return; fi
+    local arch; arch=$(setup_arch)
+    setup_install_release zoxide ajeetdsouza/zoxide "$ZOXIDE_VERSION" "zoxide-${ZOXIDE_VERSION}-$arch-unknown-linux-musl.tar.gz"
 }
-
-# ------------------------------------------------------------------------------
-# 10. Bat (Leitor de Arquivos com Sintaxe Colorida em Rust)
-# ------------------------------------------------------------------------------
 instalar_bat() {
-    log_secao "10. Bat (Substituto Moderno do 'cat' em Rust)"
-
-    mkdir -p "$DIR_LOCAL_BIN"
-
-    if command -v bat >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/bat" ]; then
-        log_pulado "Bat já está instalado em $DIR_LOCAL_BIN/bat"
-        return
-    fi
-
-    log_info "Instalando Bat (visualizador de arquivos com realce de sintaxe)..."
-    local arch
-    arch="$(uname -m)"
-    local bat_arch=""
-    case "$arch" in
-        x86_64) bat_arch="x86_64" ;;
-        aarch64|arm64) bat_arch="aarch64" ;;
-        *) bat_arch="" ;;
-    esac
-
-    if [ -n "$bat_arch" ]; then
-        local tag
-        tag=$(obter_tag_github "sharkdp/bat" "$FALLBACK_BAT_VERSION")
-        local tar_file="bat-${tag}-${bat_arch}-unknown-linux-musl.tar.gz"
-        local download_url="https://github.com/sharkdp/bat/releases/download/${tag}/${tar_file}"
-        local temp_dir
-        temp_dir=$(mktemp -d)
-        if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
-            tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" 2>/dev/null || true
-            local bin_found
-            bin_found=$(find "$temp_dir" -type f -name "bat" | head -n 1)
-            if [ -n "$bin_found" ] && [ -f "$bin_found" ]; then
-                mv "$bin_found" "$DIR_LOCAL_BIN/bat"
-                chmod +x "$DIR_LOCAL_BIN/bat"
-            fi
-        fi
-        rm -rf "$temp_dir"
-    fi
-
-    # Fallback via apt se o download direto não instalou
-    if [ ! -f "$DIR_LOCAL_BIN/bat" ]; then
-        if ! dpkg -s bat >/dev/null 2>&1; then
-            local sudo_cmd=""
-            [ "$EUID" -ne 0 ] && sudo_cmd="sudo"
-            $sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y bat >/dev/null 2>&1 || true
-        fi
-        if command -v batcat >/dev/null 2>&1; then
-            ln -sf "$(command -v batcat)" "$DIR_LOCAL_BIN/bat"
-        fi
-    fi
-
-    if [ -f "$DIR_LOCAL_BIN/bat" ] || command -v bat >/dev/null 2>&1; then
-        log_sucesso "Bat instalado com sucesso em $DIR_LOCAL_BIN/bat!"
-    else
-        log_aviso "Não foi possível baixar o Bat automaticamente."
-    fi
+    if setup_reuse_tool bat "$BAT_VERSION"; then log_pulado 'Bat funcional.'; return; fi
+    local arch; arch=$(setup_arch)
+    setup_install_release bat sharkdp/bat "$BAT_VERSION" "bat-v${BAT_VERSION}-$arch-unknown-linux-musl.tar.gz"
 }
-
-# ------------------------------------------------------------------------------
-# 11. Eza (Listagem de Pastas com Suporte a Git e Árvore em Rust)
-# ------------------------------------------------------------------------------
 instalar_eza() {
-    log_secao "11. Eza (Substituto Moderno do 'ls' em Rust com Git)"
-
-    mkdir -p "$DIR_LOCAL_BIN"
-
-    if command -v eza >/dev/null 2>&1 || [ -f "$DIR_LOCAL_BIN/eza" ]; then
-        log_pulado "Eza já está instalado em $DIR_LOCAL_BIN/eza"
-        return
-    fi
-
-    log_info "Instalando Eza (listagem rápida com ícones e status de Git)..."
-    local arch
-    arch="$(uname -m)"
-    local eza_arch=""
-    case "$arch" in
-        x86_64) eza_arch="x86_64-unknown-linux-gnu" ;;
-        aarch64|arm64) eza_arch="aarch64-unknown-linux-gnu" ;;
-        *) eza_arch="" ;;
-    esac
-
-    if [ -n "$eza_arch" ]; then
-        local tag
-        tag=$(obter_tag_github "eza-community/eza" "$FALLBACK_EZA_VERSION")
-        local tar_file="eza_${eza_arch}.tar.gz"
-        local download_url="https://github.com/eza-community/eza/releases/download/${tag}/${tar_file}"
-        local temp_dir
-        temp_dir=$(mktemp -d)
-        if curl -fsSL "$download_url" -o "$temp_dir/$tar_file" 2>/dev/null; then
-            tar -xzf "$temp_dir/$tar_file" -C "$temp_dir" 2>/dev/null || true
-            local bin_found
-            bin_found=$(find "$temp_dir" -type f -name "eza" | head -n 1)
-            if [ -n "$bin_found" ] && [ -f "$bin_found" ]; then
-                mv "$bin_found" "$DIR_LOCAL_BIN/eza"
-                chmod +x "$DIR_LOCAL_BIN/eza"
-            fi
-        fi
-        rm -rf "$temp_dir"
-    fi
-
-    if [ -f "$DIR_LOCAL_BIN/eza" ]; then
-        chmod +x "$DIR_LOCAL_BIN/eza"
-        log_sucesso "Eza instalado com sucesso em $DIR_LOCAL_BIN/eza!"
-    else
-        log_aviso "Não foi possível baixar o Eza automaticamente."
-    fi
+    if setup_reuse_tool eza "$EZA_VERSION"; then log_pulado 'Eza funcional.'; return; fi
+    local arch; arch=$(setup_arch)
+    setup_install_release eza eza-community/eza "$EZA_VERSION" "eza_$arch-unknown-linux-gnu.tar.gz"
 }

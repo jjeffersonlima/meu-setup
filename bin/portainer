@@ -1,315 +1,121 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# meu-setup: portainer
-# Gerenciador Sob Demanda do Portainer CE para WSL.
-# Permite ligar a interface web para subir Stacks e desligar tudo para liberar RAM.
-# ==============================================================================
-
-set -euo pipefail
-
-# Cores para o terminal
-BOLD='\033[1m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-NOME_CONTAINER="portainer"
-NOME_VOLUME="portainer_data"
-IMAGEM_PORTAINER="portainer/portainer-ce:latest"
-PORTA_HTTP="9000"
-PORTA_HTTPS="9443"
-URL_PORTAINER="http://localhost:${PORTA_HTTP}"
-
-mostrar_banner() {
-    echo -e "${CYAN}"
-    echo "  ╔══════════════════════════════════════════════════╗"
-    echo "  ║          🐳  Portainer CE - Sob Demanda          ║"
-    echo "  ║                   meu-setup                      ║"
-    echo "  ╚══════════════════════════════════════════════════╝"
-    echo -e "${NC}"
+# meu-setup: Portainer sob demanda, com preservação do volume persistente.
+set -Eeuo pipefail
+DIR_SETUP="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+# shellcheck source=lib/common.sh
+source "$DIR_SETUP/lib/common.sh"
+# shellcheck source=configs/versions.env
+source "$DIR_SETUP/configs/versions.env"
+umask 077
+container="${SETUP_PORTAINER_NAME:-portainer}"
+volume="${SETUP_PORTAINER_VOLUME:-portainer_data}"
+http_port="${SETUP_PORTAINER_HTTP_PORT:-9000}"
+https_port="${SETUP_PORTAINER_HTTPS_PORT:-9443}"
+help() {
+    cat <<'HELP'
+Uso: portainer [comando] [--lan]
+  start       Inicia o painel (padrão: http://localhost:9000)
+  repair      Corrige configuração antiga, mantendo o painel ligado ou parado
+  reset       Recria o container preservando contas, dados e stacks do painel
+  token       Mostra o token de primeiro acesso
+  stop        Para somente o Portainer
+  stop-all    Para TODOS os containers em execução
+  status      Mostra estado e portas, sem iniciar serviços
+  logs        Acompanha os logs
+  help        Exibe esta ajuda
+--lan expõe o painel na rede local. O token inicial permanece habilitado.
+HELP
 }
-
-garantir_docker() {
-    if ! command -v docker >/dev/null 2>&1; then
-        echo -e "${RED}Erro: Docker Engine não está instalado!${NC}"
-        echo -e "Execute o instalador do meu-setup: ./install.sh"
-        exit 1
-    fi
-
-    # Se o daemon não estiver respondendo, tenta iniciar via systemd
-    if ! docker info >/dev/null 2>&1; then
-        echo -e "${YELLOW}Iniciando o serviço do Docker Engine no systemd...${NC}"
-        sudo systemctl start docker 2>/dev/null || true
-        for _ in {1..5}; do
-            if docker info >/dev/null 2>&1 || sudo docker info >/dev/null 2>&1; then
-                break
-            fi
-            sleep 1
-        done
-    fi
-
-    if ! docker info >/dev/null 2>&1; then
-        echo -e "${RED}Erro: Não foi possível comunicar com o daemon do Docker.${NC}"
-        echo -e "Verifique o status com: ${CYAN}systemctl status docker${NC}"
-        exit 1
-    fi
-}
-
-abrir_navegador() {
-    local url="$1"
-    echo -e "${CYAN}Abrindo Portainer no navegador do Windows...${NC}"
-    if command -v cmd.exe >/dev/null 2>&1; then
-        cmd.exe /c start "$url" >/dev/null 2>&1 || true
-    elif command -v explorer.exe >/dev/null 2>&1; then
-        explorer.exe "$url" >/dev/null 2>&1 || true
-    elif command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$url" >/dev/null 2>&1 || true
-    fi
-}
-
-iniciar_portainer() {
-    garantir_docker
-
-    echo -e "${BLUE}▶ Verificando status do container Portainer...${NC}"
-
-    # Garante o volume persistente para nunca perder senhas ou stacks
-    if ! docker volume inspect "$NOME_VOLUME" >/dev/null 2>&1; then
-        echo -e "${CYAN}Criando volume persistente de dados: ${BOLD}${NOME_VOLUME}${NC}..."
-        docker volume create "$NOME_VOLUME" >/dev/null
-    fi
-
-    local port_http_bind="127.0.0.1:${PORTA_HTTP}:9000"
-    local port_https_bind="127.0.0.1:${PORTA_HTTPS}:9443"
-
-    if [ "${MODO_LAN:-false}" = true ]; then
-        port_http_bind="${PORTA_HTTP}:9000"
-        port_https_bind="${PORTA_HTTPS}:9443"
-        echo -e "${YELLOW}⚠ ATENÇÃO: Modo LAN ativado! Portas 9000/9443 expostas na rede local.${NC}"
-    else
-        echo -e "${GREEN}✔ Modo Seguro Ativo: Vinculando Portainer exclusivamente a localhost (127.0.0.1).${NC}"
-    fi
-
-    # Se já existir, verifica se o tipo de vinculação de rede mudou
-    if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-        local current_binding
-        current_binding=$(docker inspect "$NOME_CONTAINER" --format '{{(index (index .HostConfig.PortBindings "9000/tcp") 0).HostIp}}' 2>/dev/null || true)
-        local precisa_recriar=false
-
-        if [ "${MODO_LAN:-false}" = true ] && [ "$current_binding" = "127.0.0.1" ]; then
-            echo -e "${YELLOW}Reconfigurando Portainer para modo LAN exposto na rede...${NC}"
-            precisa_recriar=true
-        elif [ "${MODO_LAN:-false}" = false ] && [ "$current_binding" != "127.0.0.1" ]; then
-            echo -e "${YELLOW}Migrando Portainer existente para o modo seguro 127.0.0.1...${NC}"
-            precisa_recriar=true
-        fi
-
-        if [ "$precisa_recriar" = true ]; then
-            docker rm -f "$NOME_CONTAINER" >/dev/null 2>&1 || true
-        fi
-    fi
-
-    # Verifica se já existe um container com esse nome
-    if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-        if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-            echo -e "${GREEN}✔ O Portainer já está em execução!${NC}"
-        else
-            echo -e "${YELLOW}Iniciando o container existente do Portainer...${NC}"
-            docker start "$NOME_CONTAINER" >/dev/null
-            echo -e "${GREEN}✔ Portainer iniciado com sucesso!${NC}"
-        fi
-    else
-        echo -e "${YELLOW}Criando e subindo o container do Portainer...${NC}"
-        docker run -d \
-            -p "$port_http_bind" \
-            -p "$port_https_bind" \
-            --name "$NOME_CONTAINER" \
-            --restart=no \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${NOME_VOLUME}:/data" \
-            "$IMAGEM_PORTAINER" \
-            --no-setup-token >/dev/null
-        echo -e "${GREEN}✔ Container do Portainer criado e iniciado!${NC}"
-    fi
-
-    # Se um Setup Token tiver sido gerado em instâncias anteriores, exibe claramente para cópia
-    local setup_token
-    setup_token=$(docker logs "$NOME_CONTAINER" 2>&1 | grep -o 'setup_token=[a-zA-Z0-9]*' | tail -n 1 | cut -d= -f2 || true)
-    if [ -n "$setup_token" ]; then
-        echo -e "\n  🔑 ${YELLOW}${BOLD}SETUP TOKEN DO PORTAINER:${NC} ${CYAN}${BOLD}${setup_token}${NC}"
-        echo -e "     ${YELLOW}(Copie e cole na tela inicial caso o Portainer solicite)${NC}"
-    fi
-
-    echo -e "\n${BOLD}${GREEN}🌐 Acesse o painel web em:${NC} ${CYAN}${URL_PORTAINER}${NC}"
-    echo -e "${YELLOW}💡 Dica de primeiro acesso:${NC} No primeiro login, defina sua senha de Administrador (mínimo 12 caracteres)."
-    echo -e "${YELLOW}💡 Para liberar RAM quando terminar:${NC} digite ${CYAN}portainer stop${NC} ou ${CYAN}portainer stop-all${NC}\n"
-
-    abrir_navegador "$URL_PORTAINER"
-}
-
-parar_portainer() {
-    garantir_docker
-
-    if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-        echo -e "${YELLOW}Parando o container do Portainer...${NC}"
-        docker stop "$NOME_CONTAINER" >/dev/null
-        echo -e "${GREEN}✔ Portainer pausado com sucesso!${NC}"
-        echo -e "${CYAN}Memória RAM do Portainer totalmente liberada para o sistema.${NC}"
-        echo -e "Seus dados, volumes e stacks continuam preservados no disco."
-    else
-        echo -e "${CYAN}O Portainer já está parado.${NC}"
-    fi
-}
-
-parar_todos_os_containers() {
-    garantir_docker
-
-    local containers_ativos
-    containers_ativos=$(docker ps -q)
-
-    if [ -n "$containers_ativos" ]; then
-        local total
-        total=$(echo "$containers_ativos" | wc -l)
-        echo -e "${YELLOW}Parando todos os $total container(s) em execução no Docker...${NC}"
-        # shellcheck disable=SC2086
-        docker stop $containers_ativos >/dev/null
-        echo -e "${GREEN}${BOLD}✔ Todos os containers foram pausados com sucesso!${NC}"
-        echo -e "${CYAN}100% da memória RAM e núcleos de CPU foram devolvidos ao seu computador.${NC}"
-    else
-        echo -e "${GREEN}✔ Nenhum container estava em execução. Recursos já estavam 100% livres!${NC}"
-    fi
-}
-
-mostrar_status() {
-    garantir_docker
-
-    echo -e "${BOLD}Status do Portainer:${NC}"
-    if docker ps --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-        echo -e "  Estado: ${GREEN}✔ ATIVO${NC} em ${CYAN}${URL_PORTAINER}${NC}"
-    elif docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-        echo -e "  Estado: ${YELLOW}⏸ PARADO${NC} (Sob Demanda - digite 'portainer' para ativar)"
-    else
-        echo -e "  Estado: ${CYAN}⚪ NÃO CRIADO${NC} (Digite 'portainer' para inicializar)"
-    fi
-
-    echo -e "\n${BOLD}Containers Ativos no Momento:${NC}"
-    local ativos
-    ativos=$(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
-    if [ "$(echo "$ativos" | wc -l)" -gt 1 ]; then
-        # shellcheck disable=SC2001
-        echo "$ativos" | sed 's/^/  /'
-    else
-        echo -e "  ${GREEN}Nenhum container ativo. Consumo de RAM: 0 MB.${NC}"
-    fi
-    echo ""
-}
-
-mostrar_logs() {
-    garantir_docker
-    if docker ps -a --format '{{.Names}}' | grep -Eq "^${NOME_CONTAINER}\$"; then
-        echo -e "${CYAN}Acompanhando logs do Portainer (Ctrl+C para sair)...${NC}\n"
-        docker logs -f "$NOME_CONTAINER"
-    else
-        echo -e "${YELLOW}Container do Portainer ainda não foi criado.${NC}"
-    fi
-}
-
-mostrar_token() {
-    garantir_docker
-    local setup_token
-    setup_token=$(docker logs "$NOME_CONTAINER" 2>&1 | grep -o 'setup_token=[a-zA-Z0-9]*' | tail -n 1 | cut -d= -f2 || true)
-    if [ -n "$setup_token" ]; then
-        echo -e "\n  🔑 ${YELLOW}${BOLD}SETUP TOKEN DO PORTAINER:${NC} ${CYAN}${BOLD}${setup_token}${NC}\n"
-    else
-        echo -e "\n${GREEN}Nenhum Setup Token pendente encontrado (ou o Portainer foi iniciado sem exigência de token).${NC}\n"
-    fi
-}
-
-reiniciar_limpo() {
-    garantir_docker
-    echo -e "${YELLOW}Removendo container do Portainer para recriar no modo sem token...${NC}"
-    docker stop "$NOME_CONTAINER" >/dev/null 2>&1 || true
-    docker rm "$NOME_CONTAINER" >/dev/null 2>&1 || true
-    docker volume rm "$NOME_VOLUME" >/dev/null 2>&1 || true
-    echo -e "${GREEN}✔ Ambiente limpo! Reiniciando Portainer sem exigência de token...${NC}"
-    iniciar_portainer
-}
-
-mostrar_ajuda() {
-    mostrar_banner
-    echo -e "Uso: ${BOLD}portainer${NC} [comando] [flags]\n"
-    echo -e "Comandos disponíveis:"
-    echo -e "  ${CYAN}portainer${NC} (ou ${CYAN}start${NC}, ${CYAN}on${NC})    Inicia o Portainer e abre no navegador (http://localhost:9000)"
-    echo -e "  ${CYAN}portainer token${NC}              Exibe o Setup Token gerado nos logs do container"
-    echo -e "  ${CYAN}portainer reset${NC}              Recria o Portainer do zero no modo sem token"
-    echo -e "  ${CYAN}portainer stop${NC} (ou ${CYAN}off${NC})       Desliga o Portainer e libera a memória RAM"
-    echo -e "  ${CYAN}portainer stop-all${NC}           Pausa ${BOLD}TODOS${NC} os containers ativos para liberar 100% da RAM"
-    echo -e "  ${CYAN}portainer status${NC}             Exibe o estado do Portainer e outros containers ativos"
-    echo -e "  ${CYAN}portainer logs${NC}               Exibe os logs do Portainer em tempo real"
-    echo -e "  ${CYAN}portainer help${NC}               Exibe este menu de ajuda\n"
-    echo -e "Opções e Flags de Rede:"
-    echo -e "  ${CYAN}--lan, --public${NC}              Abre portas em 0.0.0.0 (exposição em rede local/Wi-Fi)"
-    echo -e "  ${CYAN}(padrão)${NC}                     Modo Seguro vinculado exclusivamente a 127.0.0.1 (localhost)\n"
-}
-
-# Processamento de flags e subcomandos
-MODO_LAN=false
-args=()
-
+action=start lan=false
 for arg in "$@"; do
-    case "$arg" in
-        --lan|--public)
-            MODO_LAN=true
-            ;;
-        *)
-            args+=("$arg")
-            ;;
-    esac
+    case "$arg" in --lan|--public) lan=true ;; -h|--help|help) help; exit 0 ;; *) action="$arg" ;; esac
 done
-
-if [ ${#args[@]} -gt 0 ]; then
-    set -- "${args[@]}"
-    acao="${1:-start}"
-else
-    acao="start"
+case "$action" in start|on|up|repair|reset|recreate|token|stop|off|down|stop-all|stopall|down-all|kill-all|status|logs) ;; *) echo "Comando desconhecido: $action" >&2; exit 2 ;; esac
+setup_environment
+if ! setup_native docker || ! timeout 10 docker info >/dev/null 2>&1; then
+    echo 'Docker indisponível nesta sessão. Verifique doctor; se necessário: sudo systemctl start docker.' >&2
+    echo 'Se o grupo Docker acabou de ser configurado, abra uma nova sessão.' >&2
+    exit 1
 fi
-
-case "$acao" in
-    start|on|up)
-        mostrar_banner
-        iniciar_portainer
-        ;;
-    token)
-        mostrar_banner
-        mostrar_token
-        ;;
-    reset|recreate)
-        mostrar_banner
-        reiniciar_limpo
-        ;;
-    stop|off|down)
-        mostrar_banner
-        parar_portainer
-        ;;
+exists() { docker container inspect "$container" >/dev/null 2>&1; }
+token() {
+    local value
+    value=$(docker logs "$container" 2>&1 | sed $'s/\\x1b\\[[0-9;]*m//g' | grep -oE 'setup_token=[^[:space:]]+' | tail -n 1 | cut -d= -f2- || true)
+    if [ -n "$value" ]; then printf 'Token de primeiro acesso: %s\n' "$value"; else echo 'Token não encontrado. Uma instância já configurada não precisa dele.'; fi
+}
+case "$action" in
+    status) docker ps -a --filter "name=^/${container}$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'; exit ;;
+    token) token; exit ;;
+    logs) docker logs -f "$container"; exit ;;
+    stop|off|down) if exists; then docker stop "$container"; fi; echo 'Portainer parado. Dados preservados.'; exit ;;
     stop-all|stopall|down-all|kill-all)
-        mostrar_banner
-        parar_todos_os_containers
-        ;;
-    status)
-        mostrar_banner
-        mostrar_status
-        ;;
-    logs)
-        mostrar_logs
-        ;;
-    help|--help|-h)
-        mostrar_ajuda
-        ;;
-    *)
-        echo -e "${RED}Comando desconhecido: '$acao'${NC}\n"
-        mostrar_ajuda
-        exit 1
-        ;;
+        mapfile -t ids < <(docker ps -q)
+        if ((${#ids[@]})); then docker stop "${ids[@]}"; fi
+        echo 'Containers parados. O serviço Docker e o WSL podem continuar usando recursos.'; exit ;;
 esac
+# Evita duas recriações concorrentes, sem usar o lock de instalação.
+mkdir -p "$SETUP_STATE_DIR"
+exec {PORTAINER_LOCK_FD}>"$SETUP_STATE_DIR/$container.lock"
+flock -n "$PORTAINER_LOCK_FD" || { echo 'Outra operação Portainer está em andamento.' >&2; exit 1; }
+bind=127.0.0.1
+if [ "$lan" = true ]; then bind=0.0.0.0; echo 'Modo LAN: painel acessível na rede. Conclua o primeiro acesso usando o token.'; fi
+if [ "$action" = repair ] && ! exists; then
+    echo 'Portainer sob demanda: será criado no primeiro uso.'
+    exit 0
+fi
+was_running=false
+image="$PORTAINER_IMAGE"
+metadata="$SETUP_STATE_DIR/$container-before-reset.json"
+if ! exists && [ -f "$metadata" ]; then
+    image=$(python3 - "$metadata" <<'PYIMAGE'
+import json, sys
+value = json.load(open(sys.argv[1]))
+print(value[0]['Image'])
+PYIMAGE
+    )
+fi
+recreate=false
+if exists; then
+    was_running=$(docker inspect "$container" --format '{{.State.Running}}')
+    current_image=$(docker inspect "$container" --format '{{.Config.Image}}')
+    [[ "$current_image" == portainer/portainer-ce* || "$current_image" == sha256:* ]] || { echo 'O nome portainer pertence a outra imagem. Nenhum container foi removido.' >&2; exit 1; }
+    current_volume=$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')
+    [ "$current_volume" = "$volume" ] || { echo 'O painel usa armazenamento personalizado. Nenhum container ou dado foi removido; revise a configuração antes do reset.' >&2; exit 1; }
+    # Reutiliza o ID da imagem existente para não fazer downgrade/upgrade da base de dados no reparo.
+    image=$(docker inspect "$container" --format '{{.Image}}')
+    existing_bind=$(docker inspect "$container" --format '{{(index (index .HostConfig.PortBindings "9000/tcp") 0).HostIp}}' 2>/dev/null || true)
+    existing_https_bind=$(docker inspect "$container" --format '{{(index (index .HostConfig.PortBindings "9443/tcp") 0).HostIp}}' 2>/dev/null || true)
+    existing_args=$(docker inspect "$container" --format '{{json .Config.Cmd}}')
+    if [ "$existing_bind" != "$bind" ] || [ "$existing_https_bind" != "$bind" ] || [[ "$existing_args" == *--no-setup-token* ]] || [[ "$action" == reset || "$action" == recreate ]]; then recreate=true; fi
+fi
+if [ "$action" = repair ] && [ "$recreate" = false ]; then
+    echo 'Portainer: configuração atual; estado de execução preservado.'
+    exit 0
+fi
+if [ "$recreate" = true ]; then
+    docker inspect "$container" > "$metadata"
+    docker rm -f "$container"
+fi
+if ! exists; then
+    if ! docker image inspect "$image" >/dev/null 2>&1; then timeout 300 docker pull "$image"; fi
+    docker volume create "$volume" >/dev/null
+    docker create --name "$container" --restart=no \
+        --label io.meu-setup.managed=true \
+        -p "$bind:$http_port:9000" -p "$bind:$https_port:9443" \
+        -v /var/run/docker.sock:/var/run/docker.sock -v "$volume:/data" "$image" >/dev/null
+fi
+if [ "$action" = repair ] && [ "$was_running" != true ]; then
+    echo 'Portainer reparado e mantido parado. Volume e imagem preservados.'
+    exit 0
+fi
+docker start "$container" >/dev/null
+# Aguarda resposta HTTP sem consumir/alterar a tela de primeiro acesso.
+ready=false
+for _ in {1..20}; do
+    if curl -fsS --connect-timeout 1 --max-time 2 "http://127.0.0.1:$http_port/api/status" >/dev/null 2>&1; then ready=true; break; fi
+    sleep 1
+done
+if [ "$ready" = false ]; then echo 'O painel ainda não respondeu. Consulte portainer logs; os dados foram preservados.' >&2; exit 1; fi
+echo "Painel pronto: http://localhost:$http_port. Para parar: portainer stop."
+token
+if [ "$action" != repair ] && [ "${SETUP_NO_BROWSER:-false}" != true ] && command -v cmd.exe >/dev/null; then cmd.exe /c start '' "http://localhost:$http_port" >/dev/null 2>&1 || true; fi

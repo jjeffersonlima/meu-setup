@@ -1,0 +1,2 @@
+# Fixture histórico: preservar os bytes originais usados para reconhecer instalações antigas.
+tests/fixtures/legacy-novo-projeto.txt -whitespace
