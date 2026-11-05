@@ -1,0 +1,9 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+# Apenas sudo: Git, Python, curl e certificados serão preparados pelo bootstrap.
+RUN apt-get update && apt-get install -y --no-install-recommends sudo && rm -rf /var/lib/apt/lists/*
+RUN useradd -m -s /bin/bash dev && echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/meu-setup-test && chmod 440 /etc/sudoers.d/meu-setup-test
+USER dev
+ENV USER=dev HOME=/home/dev
+WORKDIR /home/dev
+CMD ["/bin/bash"]

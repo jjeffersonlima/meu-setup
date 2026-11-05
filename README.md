@@ -1,14 +1,30 @@
 # meu-setup
 
-Ambiente pessoal de desenvolvimento para estudar e criar automações Python, sites Astro e aplicações Node/TypeScript no WSL com Ubuntu/Debian.
+Ambiente de desenvolvimento para quem está começando a criar automações Python, sites Astro e aplicações Node/TypeScript no WSL. Criado para uso pessoal e disponível para quem quiser preparar seu próprio ambiente.
 
 O instalador prepara as ferramentas, corrige configurações antigas reconhecidas e entrega atalhos para o dia a dia. Projetos, bancos, chaves SSH e preferências pessoais são preservados.
 
-## Instalar ou reparar
+## Instalação com um comando
 
-Dentro da pasta do projeto:
+Abra o terminal do **Ubuntu no WSL**, depois de criar seu usuário e sua senha do Linux, e cole:
 
 ```bash
+bash -c 'set -e; if ! command -v curl >/dev/null || [ ! -s /etc/ssl/certs/ca-certificates.crt ]; then sudo apt-get update; sudo apt-get install -y curl ca-certificates; fi; script=$(curl -fsSL --connect-timeout 10 --max-time 60 --retry 2 https://raw.githubusercontent.com/jjeffersonlima/meu-setup/main/bootstrap.sh); bash -c "$script" -- "$@"'
+```
+
+O comando prepara o download mesmo se o `curl` estiver ausente. A entrada [bootstrap.sh](bootstrap.sh) instala os pré-requisitos necessários, obtém o código e executa a instalação recomendada. A senha solicitada é a **senha do Linux**. Não é necessário clonar o repositório manualmente.
+
+O código fica em `~/.local/share/meu-setup`. Se você já usa o projeto em outro local registrado, essa instalação é reaproveitada. A pasta permanece no disco porque os atalhos e as atualizações dependem dela. Arquivos pessoais e repositórios com alterações locais não são substituídos.
+
+**Requisitos:** conexão com a internet, Bash (padrão do Ubuntu), usuário Linux com acesso ao `sudo` e distribuição com APT. O ambiente validado é Ubuntu 24.04/26.04 no WSL 2, em x86_64. Os downloads também têm opções ARM64, mas essa arquitetura e outras distribuições APT ainda não foram validadas integralmente.
+
+Se ainda não instalou o WSL, siga a [instalação oficial da Microsoft](https://learn.microsoft.com/en-us/windows/wsl/install). O comando acima deve ser executado no terminal Linux, depois dessa preparação.
+
+## Alternativa: clonar e escolher as ferramentas
+
+```bash
+git clone https://github.com/jjeffersonlima/meu-setup.git
+cd meu-setup
 ./install.sh
 ```
 
@@ -39,6 +55,8 @@ Uma ferramenta não escolhida não aparece como defeito no diagnóstico. Mudar a
 
 Ao terminar, **abra um terminal novo**. Se houver orientação para reiniciar o WSL, salve seu trabalho e execute `wsl --shutdown` no PowerShell do Windows; isso encerra todas as distribuições WSL em execução. O instalador não fecha suas sessões automaticamente. [Configuração do WSL](https://learn.microsoft.com/en-us/windows/wsl/wsl-config).
 
+Os comandos com `./install.sh` pressupõem que você está na pasta indicada ao final da instalação. Em uma instalação nova pelo comando único, use `cd ~/.local/share/meu-setup`.
+
 Outras opções:
 
 ```bash
@@ -50,6 +68,17 @@ Outras opções:
 ```
 
 A primeira instalação pode solicitar sua senha do Linux para instalar pacotes. Em modo `--yes`, o sudo precisa estar autenticado ou configurado sem senha: use `sudo -v` antes se necessário. Esse modo não autoriza apagar dados.
+
+## Identidade Git para seus primeiros commits
+
+Se ainda não configurou sua identidade, escolha o nome e o e-mail que quer associar aos seus commits:
+
+```bash
+git config --global user.name "Seu Nome"
+git config --global user.email "voce@exemplo.com"
+```
+
+Uma identidade já existente é preservada pelo instalador.
 
 ## Criar e executar um projeto
 
@@ -175,6 +204,7 @@ Use `--revision N` para escolher outra versão listada no índice, começando em
 
 ```bash
 make test-fast       # Sintaxe, ShellCheck quando disponível, regressões sem rede/sudo
+make test-bootstrap  # Comando único em Ubuntu sem Git/Python/curl; usa rede e Docker
 make e2e             # Instalação e templates reais em Ubuntu descartável; usa rede e Docker
 make test-services   # PostgreSQL e Portainer em recursos exclusivos de teste
 make test            # Testes locais e integração da instalação
@@ -184,8 +214,8 @@ A CI exige ShellCheck. Localmente, sua ausência aparece como `NÃO EXECUTADO`. 
 
 Um container comum não comprova systemd, integração Windows ou reinício do WSL. Essas verificações precisam ser feitas na máquina real. O diagnóstico não usa sudo, não repara arquivos e não inicia serviços. Ele distingue falhas, componentes não escolhidos e pendências da sessão.
 
-## Duas máquinas
+## Usar em outros computadores
 
-Aplique primeiro em uma máquina, confira seus projetos e rode o instalador novamente para verificar estabilidade. Depois use a mesma revisão na segunda, com inventário e backups próprios. Cada máquina mantém sua seleção, limites de recursos e dados.
+Execute a instalação em cada computador. A seleção de ferramentas, os backups e os limites de recursos pertencem àquela instalação; não copie chaves, bancos ou o diretório de estado de outra pessoa.
 
-O roteiro e o registro da implantação ficam em [docs/IMPLANTACAO.md](docs/IMPLANTACAO.md). O plano original está em [PLANO-DE-CORRECAO.md](PLANO-DE-CORRECAO.md).
+Para contribuir, veja [CONTRIBUTING.md](CONTRIBUTING.md). Relatórios de máquinas, planos de trabalho, logs e inventários locais ficam fora do conteúdo publicado.

@@ -1,2 +1,4 @@
+# Scripts são executados no Linux, inclusive quando o clone for feito pelo Windows.
+* text=auto eol=lf
 # Fixture histórico: preservar os bytes originais usados para reconhecer instalações antigas.
-tests/fixtures/legacy-novo-projeto.txt -whitespace
+tests/fixtures/legacy-novo-projeto.txt -text -whitespace

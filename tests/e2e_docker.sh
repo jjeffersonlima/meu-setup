@@ -10,6 +10,6 @@ timeout 600 docker build -t "$image" -f "$DIR_ROOT/tests/Dockerfile.test" "$DIR_
 # Snapshot estável: alterações no checkout durante a execução não mudam o teste.
 snapshot=$(mktemp -d)
 trap 'rm -rf "$snapshot"' EXIT
-tar -C "$DIR_ROOT" --exclude=.git --exclude=__pycache__ -cf - . | tar -C "$snapshot" -xf -
+python3 -B "$DIR_ROOT/tests/source_snapshot.py" "$snapshot"
 # Código montado somente para leitura. Configurações e pacotes ficam no container descartável.
 timeout 1200 docker run --rm -v "$snapshot:/home/dev/meu-setup:ro" "$image" /home/dev/meu-setup/tests/e2e_inner_test.sh

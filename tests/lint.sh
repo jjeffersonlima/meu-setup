@@ -2,7 +2,7 @@
 set -euo pipefail
 DIR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DIR_ROOT"
-files=(install.sh bin/* lib/*.sh configs/shell.bash tests/*.sh)
+files=(bootstrap.sh install.sh bin/* lib/*.sh configs/shell.bash tests/*.sh)
 for file in "${files[@]}"; do bash -n "$file"; done
 python3 -B - <<'PY'
 import ast
@@ -12,6 +12,7 @@ for root in ('lib', 'tests', 'templates'):
         ast.parse(path.read_text(), filename=str(path))
 print('Sintaxe Bash e Python: aprovada.')
 PY
+python3 -B "$DIR_ROOT/tests/public_files.py"
 checker="${SHELLCHECK_BIN:-shellcheck}"
 if command -v "$checker" >/dev/null 2>&1; then
     "$checker" -x "${files[@]}"

@@ -38,3 +38,14 @@ jobs:
 
       - name: Verificar PostgreSQL e preservação de dados do Portainer
         run: ./tests/docker_services.sh
+
+  bootstrap:
+    name: Instalação automática em Ubuntu mínimo
+    timeout-minutes: 25
+    needs: lint-and-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+      - name: Validar bootstrap sem Git, Python ou curl pré-instalados
+        run: ./tests/bootstrap_docker.sh
