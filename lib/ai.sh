@@ -11,7 +11,9 @@ setup_ai_script() {
     shift
     script=$(mktemp "${TMPDIR:-/tmp}/meu-setup-ai.XXXXXXXX.sh") || return
     if setup_download "$url" "$script" && bash -n "$script"; then
-        timeout 600 bash "$script" "$@" || status=$?
+        # Instaladores nativos podem consultar o terminal mesmo sem perguntas.
+        # --foreground evita suspensão por SIGTTIN/SIGTTOU em um TTY real.
+        timeout --foreground 600 bash "$script" "$@" || status=$?
     else status=1; fi
     rm -f "$script"
     return "$status"
@@ -25,7 +27,7 @@ setup_ai_npm() {
         log_erro 'Repare o Node Linux antes de instalar IA.'; return 1
     fi
     # Prefixo explícito: não altera npmrc nem depende do diretório de uma versão fnm.
-    timeout 300 npm install --global --prefix "$prefix" "$package@$version" --fetch-retries=2 --fetch-timeout=30000 || return
+    timeout --foreground 300 npm install --global --prefix "$prefix" "$package@$version" --fetch-retries=2 --fetch-timeout=30000 || return
     setup_ai_state npm-launcher "$component" || return
     hash -r
     setup_native "$component" || return 1
@@ -81,7 +83,7 @@ match = re.fullmatch(r'([a-fA-F0-9]{64})\s+\*?(?:\./)?install\.sh\s*', (p/'insta
 sys.exit(0 if match and hashlib.sha256((p/'install.sh').read_bytes()).hexdigest() == match[1].lower() else 1)
 PY
         then
-            bash -n "$stage/install.sh" && AI_MEMORY_VERSION="$AI_MEMORY_VERSION" timeout 600 bash "$stage/install.sh" || status=$?
+            bash -n "$stage/install.sh" && AI_MEMORY_VERSION="$AI_MEMORY_VERSION" timeout --foreground 600 bash "$stage/install.sh" || status=$?
         else status=1; fi
     else status=1; fi
     rm -rf "$stage"
@@ -126,7 +128,7 @@ configurar_memoria_ia() {
         return 0
     fi
     # O instalador oficial preserva entradas alheias e instala skills globais.
-    timeout 300 ai-memory setup --yes "${agents[@]}" || return
+    timeout --foreground 300 ai-memory setup --yes "${agents[@]}" || return
     timeout 30 ai-memory status || return
     log_info 'Reinicie os agentes. No Codex, confira /hooks e conceda a confiança solicitada. Login e confiança permanecem ações do usuário.'
 }

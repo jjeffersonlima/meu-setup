@@ -42,6 +42,25 @@ with (home/'.local/bin/codex').open('rb') as binary:
     assert binary.read(4) == b'\x7fELF'
 assert (home/'.local/share/meu-setup/npm/bin/codex').read_text() == 'old package preserved\n'
 PY
+# Executa o instalador real do Claude com terminal controlador, como no WSL.
+python3 -B - "$DIR_SETUP" <<'PYTTY'
+import os, sys
+sys.path.insert(0, sys.argv[1] + '/tests')
+from pty_runner import run_terminal
+script = '''set -euo pipefail
+DIR_SETUP="$1"
+source "$DIR_SETUP/lib/common.sh"
+source "$DIR_SETUP/lib/log.sh"
+source "$DIR_SETUP/lib/ai.sh"
+setup_environment
+setup_ai_install claude
+'''
+result = run_terminal(['bash', '-c', script, 'claude-tty-test', sys.argv[1]], '',
+                      env=os.environ.copy(), cwd=os.getcwd(), timeout=660)
+print(result.stdout)
+print(result.stderr, file=sys.stderr)
+assert result.returncode == 0, 'Instalador Claude falhou ou perdeu o terminal controlador'
+PYTTY
 instalar_ferramentas_ia
 first=$(readlink -f "$(command -v codex)")
 instalar_ferramentas_ia

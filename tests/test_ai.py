@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pty_runner import run_terminal
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -138,6 +139,22 @@ chmod +x "$4/bin/skills"''')
     def test_failed_download_is_not_executed(self):
         self.shell('setup_download() { echo "touch \\"$HOME/executed\\"" > "$2"; return 1; }; setup_ai_script https://invalid', ok=False)
         self.assertFalse((self.home / 'executed').exists())
+
+    def test_installer_can_read_controlling_terminal_inside_timeout(self):
+        script = self.root / 'native-installer.sh'
+        script.write_text('''#!/bin/bash
+read -rp 'Installer confirmation: ' answer </dev/tty
+printf '%s' "$answer" > "$HOME/terminal-answer"
+''')
+        command = self.bootstrap + '''
+setup_download() { cp "$NATIVE_FIXTURE" "$2"; }
+setup_ai_script https://fixture.invalid/native-installer
+'''
+        env = dict(self.env, NATIVE_FIXTURE=str(script))
+        result = run_terminal(['bash', '-c', command], 'confirmed\n', env=env,
+                              cwd=self.root, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.home / 'terminal-answer').read_text(), 'confirmed')
 
     def test_memory_checksum_failure_never_runs_installer(self):
         self.shell('setup_download() { echo invalid > "$2"; }; setup_ai_memory_install', ok=False)
