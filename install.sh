@@ -12,6 +12,8 @@ mostrar_ajuda() {
 Uso: ./install.sh [OPÇÕES]
   -y, --yes           Instala/repara sem menu, lembrando a seleção anterior
   --update-tools      Atualiza ferramentas até as versões de referência testadas
+  --ai                Acrescenta as ferramentas de IA à seleção
+  --update-ai         Atualiza IA gerenciada sem atualização automática
   --repair            Repara a instalação e as configurações existentes
   -c, --custom        Escolhe as ferramentas por finalidade
   --components LISTA  Seleção explícita, separada por vírgulas (consulte README)
@@ -24,7 +26,8 @@ EOF
 }
 
 main() {
-    local custom=false inventory=false components_set=false reply component label
+    local custom=false inventory=false components_set=false ai=false reply component label
+    export SETUP_UPDATE_AI=false
     export SETUP_CONFIG_ONLY=false SETUP_USER_ONLY=false SETUP_NON_INTERACTIVE=false SETUP_UPDATE_TO_REFERENCE=false SETUP_DOCKER_BOOT=keep
     SETUP_COMPONENTS=""
     while (($#)); do
@@ -32,6 +35,8 @@ main() {
             -h|--help) mostrar_ajuda; return 0 ;;
             -y|--yes|--non-interactive) SETUP_NON_INTERACTIVE=true ;;
             --repair) : ;;
+            --ai) ai=true ;;
+            --update-ai) SETUP_UPDATE_AI=true ;;
             --update-tools) export SETUP_UPDATE_TO_REFERENCE=true ;;
             -c|--custom) custom=true ;;
             --config-only) SETUP_CONFIG_ONLY=true ;;
@@ -42,7 +47,7 @@ main() {
                 case "$2" in keep|on|off) export SETUP_DOCKER_BOOT="$2" ;; *) log_erro 'Modo Docker inválido.'; return 2 ;; esac
                 shift ;;
             --components)
-                [ "$#" -ge 2 ] && [[ "$2" != -* ]] || { log_erro 'Informe a lista após --components.'; return 2; }
+                if [ "$#" -lt 2 ] || [[ "$2" == -* ]]; then log_erro 'Informe a lista após --components.'; return 2; fi
                 SETUP_COMPONENTS="$2"; components_set=true; shift ;;
             *) log_erro "Opção desconhecida: $1"; return 2 ;;
         esac
@@ -77,18 +82,27 @@ main() {
             read -rp "Habilitar $label? [S/n]: " reply
             case "$reply" in n|N) ;; *) SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}$component" ;; esac
         done
+        read -rp 'Habilitar agentes de IA, skills e memória local? [s/N]: ' reply
+        case "$reply" in s|S) ai=true ;; esac
     elif [ "$SETUP_NON_INTERACTIVE" = false ] && [ -t 0 ]; then
         echo "Ferramentas selecionadas: ${SETUP_COMPONENTS:-somente atalhos/configuração}"
         echo 'Instalações anteriores serão reparadas automaticamente. Dados pessoais serão preservados.'
         read -rp 'Continuar? [S/n]: ' reply
         case "$reply" in n|N) return 0 ;; esac
     fi
+    if [ "$ai" = true ]; then
+        SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}codex,claude,opencode,antigravity,skills,ai-memory"
+    fi
     for component in ${SETUP_COMPONENTS//,/ }; do
-        case "$component" in starship|node|python|docker|lazydocker|portainer|lazygit|zoxide|bat|eza|git) ;; *) log_erro "Componente desconhecido: $component"; return 2 ;; esac
+        case "$component" in starship|node|python|docker|lazydocker|portainer|lazygit|zoxide|bat|eza|git|codex|claude|opencode|antigravity|skills|ai-memory) ;; *) log_erro "Componente desconhecido: $component"; return 2 ;; esac
     done
     if setup_selected lazydocker || setup_selected portainer; then
         setup_selected docker || SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}docker"
     fi
+    if setup_selected codex || setup_selected skills; then
+        setup_selected node || SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}node"
+    fi
+    SETUP_COMPONENTS=$(setup_python normalize --components "$SETUP_COMPONENTS")
     export SETUP_COMPONENTS
     setup_lock
     umask 077
@@ -108,7 +122,7 @@ PYLOG
     local status
     trap 'status=$?; trap - ERR; log_erro "Reparo interrompido (código $status). Consulte $LOG_FILE e execute novamente após corrigir a causa."; exit "$status"' ERR
     local module
-    for module in system tools dev_runtimes docker git bashrc conclusao; do
+    for module in system tools dev_runtimes docker git bashrc conclusao ai; do
         # shellcheck source=/dev/null
         source "$DIR_SETUP/lib/$module.sh"
     done
@@ -126,11 +140,13 @@ PYLOG
         setup_selected zoxide && instalar_zoxide
         setup_selected bat && instalar_bat
         setup_selected eza && instalar_eza
+        instalar_ferramentas_ia
     fi
     # As migrações rodam mesmo se todas as ferramentas já estiverem instaladas.
     configurar_bashrc
     setup_selected git && configurar_git
     if [ "$SETUP_USER_ONLY" = false ]; then configurar_wsl_conf; otimizar_wslconfig; fi
+    configurar_memoria_ia
     setup_selected portainer && preparar_portainer
     mostrar_conclusao
     setup_python finalize --components "$SETUP_COMPONENTS"

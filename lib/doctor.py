@@ -74,7 +74,7 @@ def main():
             row(component, 'NÃO ESCOLHIDO', 'Opcional; não é uma falha.')
             continue
         commands = {'node': ('fnm', 'node', 'pnpm'), 'python': ('python3', 'uv'),
-                    'git': ('git', 'gh'), 'portainer': ()}.get(component, (component,))
+                    'git': ('git', 'gh'), 'antigravity': ('agy',), 'portainer': ()}.get(component, (component,))
         if not commands:
             continue
         for command in commands:
@@ -125,6 +125,41 @@ def main():
         completion = config.HOME_DIR / '.local/share/bash-completion/completions/uv'
         if not completion.is_file() or not completion.stat().st_size:
             row('Autocompletar uv', 'PENDENTE', 'Execute o reparo para gerar o arquivo.')
+    ownership = config.load(config.STATE / 'ai-tools.json', {})
+    for component in ('codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory'):
+        if component not in components:
+            continue
+        if component in ('claude', 'antigravity'):
+            detail = 'Atualizador nativo; configuração do usuário preservada.'
+        elif component in ownership:
+            detail = 'Gerenciada por atualizar; --no-ai pula esta etapa.'
+        else:
+            detail = 'Instalação externa; use seu gerenciador original.'
+        row('Atualização ' + component, 'INFO', detail)
+    if 'ai-memory' in components:
+        from ai_config import memory_dir, check_memory
+        try:
+            memory_config = memory_dir() / 'config.toml'
+            if not memory_config.is_file():
+                raise ValueError('Configuração ai-memory ausente; execute o reparo.')
+            check_memory(memory_config)
+            row('Perfil de memória', 'PRONTO', 'Embeddings locais; sem LLM de servidor configurado.')
+        except (ValueError, OSError) as error:
+            row('Perfil de memória', 'PENDENTE', str(error))
+        models = memory_dir() / 'models/all-MiniLM-L6-v2'
+        available = all((models / name).is_file() for name in ('model.safetensors', 'tokenizer.json', 'config.json'))
+        row('Modelo local', 'INFO' if available else 'PENDENTE',
+            'Arquivos presentes; ai-memory doctor verifica o carregamento.' if available else 'Modelo ainda não disponível; confira ai-memory doctor.')
+        if config.native_version('ai-memory')['working']:
+            try:
+                result = subprocess.run(['ai-memory', 'status'], capture_output=True, timeout=15)
+                row('Servidor de memória', 'PRONTO' if result.returncode == 0 else 'PENDENTE',
+                    'Responde ao cliente local.' if result.returncode == 0 else 'Confira ai-memory status e ai-memory doctor.')
+            except (OSError, subprocess.TimeoutExpired):
+                row('Servidor de memória', 'PENDENTE', 'Não respondeu dentro do limite.')
+        row('Integrações de memória', 'PENDENTE', 'Confira ai-memory doctor; reinicie agentes e confira a confiança em /hooks no Codex.')
+        row('Login das CLIs', 'INFO', 'Validado no primeiro uso de cada agente; credenciais não são lidas pelo diagnóstico.')
+        row('Codex App', 'INFO', 'Valide MCP e acesso ao serviço WSL no ambiente de execução do aplicativo.')
     print(f'\nResultado: {len(failures)} falha(s), {len(warnings)} pendência(s).')
     if warnings:
         print('As pendências acima precisam de atenção; não foram marcadas como sucesso.')

@@ -49,3 +49,12 @@ jobs:
         uses: actions/checkout@v4
       - name: Validar bootstrap sem Git, Python ou curl pré-instalados
         run: ./tests/bootstrap_docker.sh
+
+  ai-tools:
+    name: Ferramentas de IA e memória local sem login
+    timeout-minutes: 30
+    needs: lint-and-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test-ai

@@ -50,7 +50,7 @@ bootstrap_main() {
         case "$1" in
             -h|--help) bootstrap_help; return 0 ;;
             --dir)
-                [ "$#" -ge 2 ] && [ -n "$2" ] && [[ "$2" != -* ]] || { bootstrap_error 'Informe o caminho após --dir.'; return 2; }
+                if [ "$#" -lt 2 ] || [ -z "$2" ] || [[ "$2" == -* ]]; then bootstrap_error 'Informe o caminho após --dir.'; return 2; fi
                 directory="$2"; shift 2 ;;
             --) shift; installer_args+=("$@"); break ;;
             *) installer_args+=("$1"); shift ;;
@@ -100,9 +100,9 @@ PY
     directory=$(readlink -m -- "${directory:-$user_home/.local/share/meu-setup}")
     export GIT_TERMINAL_PROMPT=0
     if [ -e "$directory" ] || [ -L "$directory" ]; then
-        [ -d "$directory" ] && [ "$(git -C "$directory" rev-parse --show-toplevel 2>/dev/null)" = "$directory" ] || {
+        if [ ! -d "$directory" ] || [ "$(git -C "$directory" rev-parse --show-toplevel 2>/dev/null)" != "$directory" ]; then
             bootstrap_error "O destino $directory não é um clone do projeto. Nenhum arquivo foi substituído."; return 1;
-        }
+        fi
         current_origin=$(git -C "$directory" remote get-url origin)
         [ "$(bootstrap_normalize_repository "$current_origin")" = "$(bootstrap_normalize_repository "$repository")" ] || {
             bootstrap_error 'O destino pertence a outro repositório. Escolha outro caminho com --dir.'; return 1;

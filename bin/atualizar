@@ -6,7 +6,7 @@ DIR_SETUP="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
 source "$DIR_SETUP/lib/common.sh"
 # shellcheck source=lib/log.sh
 source "$DIR_SETUP/lib/log.sh"
-yes=false system=false repository=true clean=false config_only=false user_only=false
+yes=false system=false repository=true clean=false config_only=false user_only=false ai=true
 while (($#)); do
     case "$1" in
         -h|--help)
@@ -18,6 +18,7 @@ Repara a configuração e instala componentes selecionados que estejam ausentes/
   --no-repo       Não busca atualizações do repositório
   --config-only   Repara apenas configurações, sem instalar ferramentas
   --user-only     Não altera configurações WSL/Windows ou containers
+  --no-ai         Não atualiza ferramentas de IA
   --clean-docker  Ação separada: remove containers parados e cache, com confirmação
   --no-prune      Compatibilidade com versões antigas; a limpeza já é desativada
   -h, --help      Exibe esta ajuda
@@ -28,6 +29,7 @@ HELP
         --system) system=true ;;
         --no-repo) repository=false ;;
         --config-only) config_only=true ;;
+        --no-ai) ai=false ;;
         --user-only) user_only=true ;;
         --clean-docker) clean=true ;;
         --no-prune) : ;;
@@ -65,6 +67,7 @@ fi
 flock -u "$SETUP_LOCK_FD"
 exec {SETUP_LOCK_FD}>&-
 args=(--repair --update-tools)
+[ "$ai" = false ] || args+=(--update-ai)
 [ "$yes" = false ] || args+=(--yes)
 [ "$config_only" = false ] || args+=(--config-only)
 [ "$user_only" = false ] || args+=(--user-only)

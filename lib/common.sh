@@ -18,9 +18,11 @@ setup_native() {
 setup_environment() {
     export FNM_DIR="$SETUP_USER_HOME/.local/share/fnm"
     export PATH="$DIR_LOCAL_BIN:$SETUP_USER_HOME/.local/share/fnm:$PATH"
+    export PATH="$SETUP_USER_HOME/.local/share/meu-setup/npm/bin:$SETUP_USER_HOME/.opencode/bin:$PATH"
     # Reaproveita o Node padrão sem executar hooks interativos ou trocar versões.
     local node_bin="$SETUP_USER_HOME/.local/share/fnm/aliases/default/bin"
     if [ -x "$node_bin/node" ]; then export PATH="$node_bin:$PATH"; fi
+    export PATH="$DIR_LOCAL_BIN:$PATH"
 }
 setup_download() {
     curl --fail --location --show-error --silent --connect-timeout 10 \

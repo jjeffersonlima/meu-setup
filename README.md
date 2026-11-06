@@ -80,6 +80,111 @@ git config --global user.email "voce@exemplo.com"
 
 Uma identidade já existente é preservada pelo instalador.
 
+## Agentes de IA, skills e memória entre sessões
+
+O conjunto de IA é opcional. Para acrescentar Codex CLI, Claude Code, OpenCode,
+Antigravity CLI (`agy`), Vercel Skills e ai-memory à seleção atual:
+
+```bash
+./install.sh --ai
+```
+
+O menu `./install.sh --custom` também oferece o conjunto. Para escolher ferramentas
+individualmente, use `--components`, que substitui a seleção anterior:
+
+```bash
+./install.sh --components node,git,codex,skills,ai-memory
+```
+
+Codex e Skills incluem Node como dependência. As ferramentas ficam disponíveis de
+qualquer pasta para o usuário Linux atual, sem `sudo npm install -g`. Os pacotes
+npm administrados pelo setup usam `~/.local/share/meu-setup/npm`, sem mudar seu
+`.npmrc`; os launchers usam o Node padrão do fnm, preservando o Node escolhido pelo
+seu projeto e mantendo as CLIs disponíveis ao trocar de versão. Abra um
+terminal novo após instalar. Instalações Linux existentes são reaproveitadas e
+continuam sob seu gerenciador original. OMP não é instalado nem configurado.
+
+O primeiro uso de `codex`, `claude`, `opencode` e `agy` segue a autenticação oficial
+de cada ferramenta. Instalar não inclui uma assinatura nem créditos de modelos.
+
+### Atualizar
+
+`atualizar` mantém Claude Code e Antigravity sob seus atualizadores nativos, sem
+alterar escolhas que desabilitem essa função. Para instalações feitas pelo setup,
+atualiza Codex e Skills pelo npm e OpenCode pelo comando `opencode upgrade`. O
+OpenCode oferece avisos de atualização; a instalação da nova versão exige uma
+ação. Instalações externas são preservadas. Use `atualizar --no-ai` para pular IA.
+
+ai-memory é atualizado pelo comando oficial, com backup antes da atualização e
+reinício do serviço de usuário ativo. Os backups ficam no estado local do setup,
+em `~/.local/state/meu-setup/ai-backups`. Migrações de banco podem exigir restaurar
+também os dados; voltar somente o executável não garante recuperação. Consulte o
+[guia oficial de backup e atualização](https://github.com/akitaonrails/ai-memory/blob/main/docs/install.md).
+
+O reparo comum reaproveita ferramentas funcionais. Novas instalações de Codex,
+Skills e ai-memory usam referências em `configs/versions.env`; a manutenção busca
+o canal estável oficial. Atualizações nativas podem avançar além das referências.
+
+### Skills globais
+
+O [Vercel Skills](https://github.com/vercel-labs/skills) descobre e instala skills.
+O setup instala o gerenciador; escolha as coleções que deseja usar:
+
+```bash
+skills find
+skills add vercel-labs/agent-skills --global
+skills list --global
+```
+
+No instalador de skills, selecione seus agentes. A atualização do gerenciador é
+separada da atualização das skills: consulte `skills update --help` para selecionar
+o escopo global. As skills gerenciadas pelo ai-memory acompanham a própria
+integração; não as mantenha simultaneamente por outro gerenciador.
+
+### Memória local
+
+Selecione ao menos uma das quatro CLIs junto com ai-memory. A configuração usa o
+instalador oficial para registrar MCP, hooks e skills globais somente nos agentes
+selecionados. É necessário systemd de usuário funcionando no WSL. Se houver
+pendência, salve o trabalho, siga a orientação do diagnóstico e execute o reparo
+novamente após abrir uma sessão nova.
+
+Este perfil requer Python 3.11 ou mais recente (incluído no Ubuntu 24.04/26.04).
+O perfil usa embeddings locais `all-MiniLM-L6-v2`, em CPU, com download inicial de
+aproximadamente 87 MB, sem API paga, GPU ou Ollama. A configuração nova exige o
+modelo local; falha ao baixá-lo deve ser resolvida antes de considerar a busca
+vetorial pronta. O modelo é voltado ao inglês; avalie a recuperação das suas notas
+em português. [Embeddings locais](https://github.com/akitaonrails/ai-memory/blob/main/docs/local-embeddings.md).
+
+O setup não configura LLM remoto no servidor. Você pode pedir ao agente ativo
+para consolidar a sessão: ele lê as observações e grava as páginas usando seu
+próprio modelo, consumindo os recursos da sessão. A consolidação autônoma por LLM
+no servidor exige configuração separada e não é habilitada pelo setup. Configurações
+existentes com provedor remoto são preservadas e precisam de migração explícita
+para este perfil. Overrides `AI_MEMORY_*`, além de `AI_MEMORY_DATA_DIR`, precisam
+ser revisados antes da configuração.
+
+Reinicie os agentes para carregar as integrações. No Codex, confira `/hooks` e
+conceda a confiança solicitada. Para acompanhar um trabalho entre CLIs, dentro do
+mesmo projeto, use por exemplo:
+
+```bash
+ai-memory run claude
+ai-memory run codex
+ai-memory status
+ai-memory doctor
+```
+
+Feche a primeira sessão antes de abrir a seguinte quando quiser passar o mesmo
+trabalho de um agente para outro. A instalação é global; a memória continua
+separada por projeto. Dados e tokens permanecem no diretório de dados do usuário,
+fora do repositório público. O serviço fica em loopback; se a porta estiver ocupada,
+revise o serviço existente ou escolha outra porta em `config.toml` e repita o reparo.
+
+O Codex App precisa de validação própria: confirme em qual ambiente o agente
+executa e se esse ambiente acessa o MCP do WSL. Configurar o CLI Linux não comprova
+a integração do app no Windows. `diagnostico` informa pendências; não inicia serviços.
+
 ## Criar e executar um projeto
 
 Digite `novo` para abrir o menu, ou use os exemplos:
@@ -205,6 +310,7 @@ Use `--revision N` para escolher outra versão listada no índice, começando em
 ```bash
 make test-fast       # Sintaxe, ShellCheck quando disponível, regressões sem rede/sudo
 make test-bootstrap  # Comando único em Ubuntu sem Git/Python/curl; usa rede e Docker
+make test-ai         # CLIs reais, servidor e integrações em container, sem login
 make e2e             # Instalação e templates reais em Ubuntu descartável; usa rede e Docker
 make test-services   # PostgreSQL e Portainer em recursos exclusivos de teste
 make test            # Testes locais e integração da instalação

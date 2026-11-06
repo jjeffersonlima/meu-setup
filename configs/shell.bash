@@ -16,6 +16,9 @@ _meu_setup_path() {
 _meu_setup_path "$HOME/.local/bin"
 if [ -x "$HOME/.local/share/fnm/fnm" ]; then _meu_setup_path "$HOME/.local/share/fnm"; fi
 if command -v fnm >/dev/null 2>&1; then eval "$(fnm env --use-on-cd)"; fi
+_meu_setup_path "$HOME/.opencode/bin"
+_meu_setup_path "$HOME/.local/share/meu-setup/npm/bin"
+_meu_setup_path "$HOME/.local/bin"
 unset -f _meu_setup_path
 
 if [ -s "$HOME/.local/share/bash-completion/completions/uv" ]; then

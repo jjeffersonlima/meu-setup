@@ -18,7 +18,7 @@ while (($#)); do
     case "$1" in
         -h|--help) help; exit 0 ;;
         --type|--name)
-            [ "$#" -ge 2 ] && [[ "$2" != -* ]] || { echo "Informe o valor após $1." >&2; exit 2; }
+            if [ "$#" -lt 2 ] || [[ "$2" == -* ]]; then echo "Informe o valor após $1." >&2; exit 2; fi
             if [ "$1" = --type ]; then tipo="$2"; else nome="$2"; fi
             shift 2 ;;
         -*) echo "Opção desconhecida: $1" >&2; exit 2 ;;

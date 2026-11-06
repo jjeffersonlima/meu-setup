@@ -18,8 +18,10 @@ STATE = Path(os.environ.get('SETUP_STATE_DIR', HOME_DIR / '.local/state/meu-setu
 START = '# >>> meu-setup >>>'
 END = '# <<< meu-setup <<<'
 COMPONENTS = ('starship', 'node', 'python', 'docker', 'lazydocker', 'portainer',
-              'lazygit', 'zoxide', 'bat', 'eza', 'git')
-COMMANDS = {'node': 'node', 'python': 'uv', 'git': 'git'}
+              'lazygit', 'zoxide', 'bat', 'eza', 'git',
+              'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory')
+DEFAULT_COMPONENTS = COMPONENTS[:11]
+COMMANDS = {'node': 'node', 'python': 'uv', 'git': 'git', 'antigravity': 'agy'}
 
 
 def digest(data):
@@ -222,7 +224,7 @@ def infer_components():
         if any(p.exists() for p in candidates) or (detected and not detected.startswith('/mnt/')):
             found.append(name)
     existing = (HOME_DIR / '.bashrc').exists() and START in (HOME_DIR / '.bashrc').read_text()
-    return found if existing or saved else list(COMPONENTS)
+    return found if existing or saved else list(DEFAULT_COMPONENTS)
 
 
 def native_version(command):
@@ -243,7 +245,8 @@ def inventory():
     return {'schema': 1, 'home': str(HOME_DIR), 'repository': str(REPO),
             'components': infer_components(),
             'tools': {name: native_version(name) for name in
-                      ('git', 'node', 'pnpm', 'uv', 'docker', 'starship', 'fnm')},
+                      ('git', 'node', 'pnpm', 'uv', 'docker', 'starship', 'fnm',
+                       'codex', 'claude', 'opencode', 'agy', 'skills', 'ai-memory')},
             'managed_files': [str(HOME_DIR / p) for p in ('.bashrc', '.config/meu-setup/shell.bash',
                 '.config/starship.toml', '.config/git/ignore')],
             'old_bashrc_backups': [str(p) for p in HOME_DIR.glob('.bashrc.backup.*')]}
@@ -326,7 +329,7 @@ def restore(path, revision):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['inventory', 'components', 'migrate', 'backup', 'restore', 'ini', 'finalize'])
+    parser.add_argument('action', choices=['inventory', 'components', 'normalize', 'migrate', 'backup', 'restore', 'ini', 'finalize'])
     parser.add_argument('path', nargs='?')
     parser.add_argument('--components')
     parser.add_argument('--output')
@@ -335,6 +338,8 @@ def main():
     args = parser.parse_args()
     if args.action == 'inventory':
         print(json.dumps(inventory(), indent=2, ensure_ascii=False))
+    elif args.action == 'normalize':
+        print(','.join(parse_components(args.components)))
     elif args.action == 'components':
         print(','.join(infer_components()))
     elif args.action == 'migrate':
