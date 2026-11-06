@@ -39,6 +39,7 @@ def main():
         'starship': 'starship/starship', 'lazygit': 'jesseduffield/lazygit',
         'lazydocker': 'jesseduffield/lazydocker', 'zoxide': 'ajeetdsouza/zoxide',
         'bat': 'sharkdp/bat', 'eza': 'eza-community/eza',
+        'herdr': 'herdrdev/herdr',
     }
     for name, repository in releases.items():
         if name in components:

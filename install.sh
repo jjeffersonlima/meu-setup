@@ -92,7 +92,7 @@ ADVANCED
         SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}codex,claude,opencode,antigravity,skills,ai-memory"
     fi
     for component in ${SETUP_COMPONENTS//,/ }; do
-        case "$component" in starship|node|python|docker|lazydocker|portainer|lazygit|zoxide|bat|eza|git|codex|claude|opencode|antigravity|skills|ai-memory) ;; *) log_erro "Componente desconhecido: $component"; return 2 ;; esac
+        case "$component" in herdr|starship|node|python|docker|lazydocker|portainer|lazygit|zoxide|bat|eza|git|codex|claude|opencode|antigravity|skills|ai-memory) ;; *) log_erro "Componente desconhecido: $component"; return 2 ;; esac
     done
     if setup_selected lazydocker || setup_selected portainer; then
         setup_selected docker || SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}docker"
@@ -129,6 +129,7 @@ PYLOG
     if [ "$SETUP_CONFIG_ONLY" = false ]; then
         command -v apt-get >/dev/null || { log_erro 'A instalação de pacotes requer Ubuntu/Debian com APT.'; return 1; }
         instalar_pacote_essencial
+        setup_selected herdr && instalar_herdr
         setup_selected starship && instalar_starship
         setup_selected node && instalar_node_e_astro
         setup_selected python && instalar_python_e_uv

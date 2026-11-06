@@ -18,7 +18,7 @@ STATE = Path(os.environ.get('SETUP_STATE_DIR', HOME_DIR / '.local/state/meu-setu
 START = '# >>> meu-setup >>>'
 END = '# <<< meu-setup <<<'
 COMPONENTS = ('starship', 'node', 'python', 'docker', 'lazydocker', 'portainer',
-              'lazygit', 'zoxide', 'bat', 'eza', 'git',
+              'lazygit', 'zoxide', 'bat', 'eza', 'herdr', 'git',
               'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory')
 DEFAULT_COMPONENTS = COMPONENTS
 COMMANDS = {'node': 'node', 'python': 'uv', 'git': 'git', 'antigravity': 'agy'}
@@ -245,7 +245,7 @@ def inventory():
     return {'schema': 1, 'home': str(HOME_DIR), 'repository': str(REPO),
             'components': infer_components(),
             'tools': {name: native_version(name) for name in
-                      ('git', 'node', 'pnpm', 'uv', 'docker', 'starship', 'fnm',
+                      ('git', 'node', 'pnpm', 'uv', 'docker', 'starship', 'herdr', 'fnm',
                        'codex', 'claude', 'opencode', 'agy', 'skills', 'ai-memory')},
             'managed_files': [str(HOME_DIR / p) for p in ('.bashrc', '.config/meu-setup/shell.bash',
                 '.config/starship.toml', '.config/git/ignore')],

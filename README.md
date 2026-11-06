@@ -53,7 +53,7 @@ componentes. Sem uma seleção salva, o menu orienta fazer a instalação primei
 | Bancos e containers | Docker Engine, Compose e Lazydocker |
 | Painel Docker no navegador | Portainer sob demanda |
 | Git e GitHub | Git, GitHub CLI e Lazygit |
-| Terminal e navegação | Starship, Zoxide, Bat e Eza |
+| Terminal e navegação | Herdr, Starship, Zoxide, Bat e Eza |
 | Agentes de IA e memória | Codex nativo, Claude Code, OpenCode, Antigravity CLI, Vercel Skills e ai-memory |
 
 O reparo reaproveita o código existente, inclusive alterações locais e a branch
@@ -84,6 +84,95 @@ instalação completa por falta de entrada. Em modo `--yes`, autentique o sudo
 antes com `sudo -v`, se necessário. Nenhuma dessas opções autoriza apagar dados.
 
 </details>
+
+## Herdr: terminais e agentes no mesmo lugar
+
+O Herdr faz parte da instalação padrão e do grupo **Terminal e navegação**.
+Abra um terminal novo, entre na pasta do projeto e execute:
+
+```bash
+herdr
+```
+
+Ele organiza projetos em espaços de trabalho (workspaces), com abas e painéis.
+Em cada painel, execute seus comandos habituais, como `claude`, `opencode`,
+`pnpm dev` ou `git status`. A barra lateral acompanha o estado dos agentes
+compatíveis: trabalhando, aguardando intervenção, concluídos ou ociosos.
+Clique nos painéis para alternar, arraste as divisórias para redimensionar e
+use o botão direito para abrir o menu de ações.
+[Primeiros passos oficiais](https://herdr.dev/tui/docs/quick-start/).
+
+### Atalhos básicos
+
+Nos atalhos abaixo, pressione **Ctrl+B**, solte as teclas e depois pressione a
+tecla indicada. Por exemplo, para criar uma aba: Ctrl+B, solte, depois `c`.
+
+| Depois de Ctrl+B | Ação |
+| --- | --- |
+| `c` | Criar aba |
+| `v` | Dividir à direita |
+| `-` | Dividir abaixo |
+| `h`, `j`, `k`, `l` | Mover para esquerda, baixo, cima ou direita |
+| `n` / `p` | Próxima aba / aba anterior |
+| `w` | Navegar entre espaços de trabalho |
+| `Shift+N` | Criar espaço de trabalho |
+| `z` | Ampliar o painel atual ou voltar à divisão |
+| `[` | Abrir modo de cópia pelo teclado |
+| `?` | Mostrar os atalhos ativos |
+| `q` | Desconectar e deixar os programas rodando |
+| `x` | Fechar o painel atual e encerrar seus processos |
+
+Os atalhos podem ser personalizados; consulte a ajuda dentro do Herdr e a
+[documentação de teclado](https://herdr.dev/tui/docs/keyboard/).
+
+### Voltar à sessão e encerrar
+
+**Fechar a janela ou a aba do terminal apenas desconecta do Herdr.** O servidor,
+os painéis e os programas continuam em segundo plano, enquanto o WSL estiver
+em execução. Isso já é o comportamento padrão do Herdr; não exige configuração
+adicional. Vale para comandos iniciados **dentro dos painéis do Herdr**.
+[Persistência ao fechar o terminal](https://herdr.dev/tui/docs/quick-start/#detach-and-come-back).
+
+Abra outro terminal e execute `herdr` para voltar à mesma sessão.
+**Ctrl+B, depois `q`, também apenas desconecta; não encerra nada.**
+Para fechar deliberadamente um painel e seus processos, use **Ctrl+B, depois
+`x`**. Os demais painéis continuam rodando. Comandos como `exit`, interrupções
+do próprio programa e ações de encerramento pelo menu também podem finalizar
+um painel ou seu trabalho; a persistência não bloqueia essas ações.
+Para encerrar a sessão padrão e seus processos, salve o trabalho e execute,
+no terminal fora do Herdr:
+
+```bash
+herdr server stop
+```
+
+Essa continuidade depende de o WSL continuar em execução. Desligar o computador
+ou executar `wsl --shutdown` encerra os processos Linux; desconectar do Herdr
+não protege processos contra esse desligamento.
+
+### Desempenho
+
+O setup instala o Herdr sem iniciá-lo automaticamente ao abrir o Bash e sem
+adicionar um serviço de inicialização. Antes do primeiro uso, ele ocupa espaço
+em disco, sem acrescentar um processo ao terminal.
+
+Durante o uso, há consumo de CPU e memória pelo cliente, pelo servidor e pelos
+programas dos painéis. Muitos painéis, histórico acumulado e saída intensa
+podem aumentar esse consumo. Depois de desconectar, o servidor e os programas
+continuam usando recursos; encerrar a sessão libera os recursos desses processos.
+Não há benchmark deste projeto que quantifique o impacto no WSL ou compare com
+o tmux. Use `top` ou `htop`, se disponível, para observar seu próprio fluxo.
+
+Para instalações existentes, adicionar somente o Herdr:
+
+```bash
+./install.sh --components herdr
+```
+
+Esse comando salva a seleção informada. Para manter todos os componentes do
+padrão selecionados, use `./install.sh --full`. O reparo mantém a seleção salva
+e não acrescenta componentes novos. Configurações pessoais do Herdr são
+preservadas; o guia `atualizar` aponta as releases oficiais.
 
 ## Identidade Git para seus primeiros commits
 

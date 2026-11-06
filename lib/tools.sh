@@ -25,7 +25,8 @@ else:
 PYHASH
     else log_aviso "Metadados de checksum indisponíveis para $name; download via HTTPS."; fi
     mkdir "$temp/extract"
-    if [[ "$asset" == *.zip ]]; then unzip -q "$temp/archive" -d "$temp/extract"
+    if [[ "$asset" == "$name-linux-"* ]]; then cp "$temp/archive" "$temp/extract/$name"
+    elif [[ "$asset" == *.zip ]]; then unzip -q "$temp/archive" -d "$temp/extract"
     else tar -xf "$temp/archive" -C "$temp/extract" --no-same-owner; fi
     candidate=$(find "$temp/extract" -type f -name "$name" -print -quit)
     [ -n "$candidate" ] || { log_erro "Release não contém $name."; exit 1; }
@@ -71,4 +72,10 @@ instalar_eza() {
     if setup_reuse_tool eza "$EZA_VERSION"; then log_pulado 'Eza funcional.'; return; fi
     local arch; arch=$(setup_arch)
     setup_install_release eza eza-community/eza "$EZA_VERSION" "eza_$arch-unknown-linux-gnu.tar.gz"
+}
+
+instalar_herdr() {
+    if setup_reuse_tool herdr "$HERDR_VERSION"; then log_pulado 'Herdr funcional.'; return; fi
+    local arch; arch=$(setup_arch)
+    setup_install_release herdr herdrdev/herdr "$HERDR_VERSION" "herdr-linux-$arch"
 }

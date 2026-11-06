@@ -125,7 +125,7 @@ def main():
         completion = config.HOME_DIR / '.local/share/bash-completion/completions/uv'
         if not completion.is_file() or not completion.stat().st_size:
             row('Autocompletar uv', 'PENDENTE', 'Execute o reparo para gerar o arquivo.')
-    for component in ('codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory'):
+    for component in ('herdr', 'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory'):
         if component in components:
             row('Atualização ' + component, 'INFO', 'Execute atualizar para consultar os comandos oficiais.')
     if 'ai-memory' in components:

@@ -10,7 +10,7 @@ from pty_runner import run_terminal
 
 ROOT = Path(__file__).resolve().parent.parent
 ALL = {'starship', 'node', 'python', 'docker', 'lazydocker', 'portainer', 'lazygit',
-       'zoxide', 'bat', 'eza', 'git', 'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory'}
+       'zoxide', 'bat', 'eza', 'herdr', 'git', 'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory'}
 
 
 class MenuTest(unittest.TestCase):
@@ -53,6 +53,11 @@ class MenuTest(unittest.TestCase):
         self.assertEqual(result.returncode, 42, result.stdout + result.stderr)
         self.assertIn('somente os números', result.stdout)
         self.assertEqual(self.selected(), {'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory', 'python', 'node'})
+
+    def test_terminal_group_includes_herdr_without_ai_dependencies(self):
+        result = self.run_menu('2\n1\n')
+        self.assertEqual(result.returncode, 42, result.stdout + result.stderr)
+        self.assertEqual(self.selected(), {'herdr', 'starship', 'zoxide', 'bat', 'eza'})
 
     def test_repair_uses_saved_selection(self):
         state = Path(self.env['SETUP_STATE_DIR']) / 'state.json'

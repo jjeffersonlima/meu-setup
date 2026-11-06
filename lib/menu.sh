@@ -7,7 +7,7 @@ setup_custom_menu() {
         cat <<'EOF'
 
 Escolha por finalidade:
-  1. Terminal e navegação (Starship, Zoxide, Bat, Eza)
+  1. Terminal e navegação (Herdr, Starship, Zoxide, Bat, Eza)
   2. Git e GitHub (Git, GitHub CLI, Lazygit)
   3. Sites e aplicativos (Node, fnm, pnpm)
   4. Automações Python (Python, uv)
@@ -25,7 +25,7 @@ EOF
         [ "${#groups[@]}" -gt 0 ] || valid=false
         for group in "${groups[@]}"; do
             case "$group" in
-                1) picked+=',starship,zoxide,bat,eza' ;;
+                1) picked+=',herdr,starship,zoxide,bat,eza' ;;
                 2) picked+=',git,lazygit' ;;
                 3) picked+=',node' ;;
                 4) picked+=',python' ;;
