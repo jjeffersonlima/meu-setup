@@ -12,7 +12,9 @@ Abra o terminal do **Ubuntu no WSL**, depois de criar seu usuário e sua senha d
 bash -c 'set -e; if ! command -v curl >/dev/null || [ ! -s /etc/ssl/certs/ca-certificates.crt ]; then sudo apt-get update; sudo apt-get install -y curl ca-certificates; fi; script=$(curl -fsSL --connect-timeout 10 --max-time 60 --retry 2 https://raw.githubusercontent.com/jjeffersonlima/meu-setup/main/bootstrap.sh); bash -c "$script" -- "$@"'
 ```
 
-O comando prepara o download mesmo se o `curl` estiver ausente. A entrada [bootstrap.sh](bootstrap.sh) instala os pré-requisitos necessários, obtém o código e executa a instalação recomendada. A senha solicitada é a **senha do Linux**. Não é necessário clonar o repositório manualmente.
+O comando prepara o download mesmo se o `curl` estiver ausente. A entrada [bootstrap.sh](bootstrap.sh) instala os pré-requisitos necessários, obtém o código e abre o menu de instalação. A senha solicitada é a **senha do Linux**. Não é necessário clonar o repositório manualmente.
+
+Antes do menu, pode ser necessário baixar os pré-requisitos e o código. A instalação das ferramentas começa depois da sua escolha.
 
 O código fica em `~/.local/share/meu-setup`. Se você já usa o projeto em outro local registrado, essa instalação é reaproveitada. A pasta permanece no disco porque os atalhos e as atualizações dependem dela. Arquivos pessoais e repositórios com alterações locais não são substituídos.
 
@@ -20,7 +22,7 @@ O código fica em `~/.local/share/meu-setup`. Se você já usa o projeto em outr
 
 Se ainda não instalou o WSL, siga a [instalação oficial da Microsoft](https://learn.microsoft.com/en-us/windows/wsl/install). O comando acima deve ser executado no terminal Linux, depois dessa preparação.
 
-## Alternativa: clonar e escolher as ferramentas
+## Alternativa: usar um clone
 
 ```bash
 git clone https://github.com/jjeffersonlima/meu-setup.git
@@ -28,7 +30,21 @@ cd meu-setup
 ./install.sh
 ```
 
-O instalador reconhece a instalação anterior e reaproveita suas escolhas. Você pode executá-lo novamente para reparar os atalhos e a configuração. No primeiro uso, a seleção recomendada inclui as ferramentas da tabela abaixo.
+As duas entradas abrem o mesmo menu:
+
+```text
+1. Instalar tudo — padrão
+2. Escolher o que instalar
+3. Reparar a instalação existente
+0. Sair
+
+Escolha [1]:
+```
+
+Pressione Enter para instalar todos os componentes da tabela abaixo. A opção 2
+permite selecionar grupos por finalidade, digitando seus números separados por
+espaço. A opção 3 usa a seleção salva para corrigir a instalação, sem acrescentar
+componentes. Sem uma seleção salva, o menu orienta fazer a instalação primeiro.
 
 | Finalidade | Ferramentas |
 | --- | --- |
@@ -38,36 +54,36 @@ O instalador reconhece a instalação anterior e reaproveita suas escolhas. Voc�
 | Painel Docker no navegador | Portainer sob demanda |
 | Git e GitHub | Git, GitHub CLI e Lazygit |
 | Terminal e navegação | Starship, Zoxide, Bat e Eza |
+| Agentes de IA e memória | Codex nativo, Claude Code, OpenCode, Antigravity CLI, Vercel Skills e ai-memory |
 
-Para escolher as ferramentas:
-
-```bash
-./install.sh --custom
-```
-
-Exemplo de seleção direta para estudar sites e Python:
-
-```bash
-./install.sh --components node,python,git,starship,zoxide
-```
-
-Uma ferramenta não escolhida não aparece como defeito no diagnóstico. Mudar a seleção não desinstala ferramentas nem apaga projetos.
+O reparo reaproveita o código existente, inclusive alterações locais e a branch
+atual; não faz fetch nem troca de branch. Use `atualizar` para consultar como
+atualizar o clone quando desejar. Uma ferramenta não escolhida não aparece como
+defeito no diagnóstico. Mudar a seleção não desinstala ferramentas nem apaga projetos.
 
 Ao terminar, **abra um terminal novo**. Se houver orientação para reiniciar o WSL, salve seu trabalho e execute `wsl --shutdown` no PowerShell do Windows; isso encerra todas as distribuições WSL em execução. O instalador não fecha suas sessões automaticamente. [Configuração do WSL](https://learn.microsoft.com/en-us/windows/wsl/wsl-config).
 
 Os comandos com `./install.sh` pressupõem que você está na pasta indicada ao final da instalação. Em uma instalação nova pelo comando único, use `cd ~/.local/share/meu-setup`.
 
-Outras opções:
+<details>
+<summary>Automação e opções avançadas</summary>
+
+No uso normal, basta abrir o menu. Para scripts e diagnóstico:
 
 ```bash
-./install.sh --inventory                  # Somente leitura; mostra o estado atual
-./install.sh --repair --yes               # Instala/repara usando a seleção anterior
-./install.sh --repair --config-only       # Corrige configuração; não instala ferramentas
-./install.sh --repair --config-only --user-only  # Corrige somente arquivos do usuário
-./install.sh --help
+./install.sh --yes                         # Mantém seleção salva; no primeiro uso instala tudo
+./install.sh --components node,python,git   # Seleção individual explícita, sem menu
+./install.sh --repair --yes                # Repara a seleção salva, sem menu
+./install.sh --config-only --user-only     # Somente configurações do usuário
+./install.sh --inventory                   # Inventário, sem alterações
+./install.sh --help-advanced
 ```
 
-A primeira instalação pode solicitar sua senha do Linux para instalar pacotes. Em modo `--yes`, o sudo precisa estar autenticado ou configurado sem senha: use `sudo -v` antes se necessário. Esse modo não autoriza apagar dados.
+Sem um terminal, informe uma ação explícita; o instalador não escolhe uma
+instalação completa por falta de entrada. Em modo `--yes`, autentique o sudo
+antes com `sudo -v`, se necessário. Nenhuma dessas opções autoriza apagar dados.
+
+</details>
 
 ## Identidade Git para seus primeiros commits
 
@@ -82,48 +98,36 @@ Uma identidade já existente é preservada pelo instalador.
 
 ## Agentes de IA, skills e memória entre sessões
 
-O conjunto de IA é opcional. Para acrescentar Codex CLI, Claude Code, OpenCode,
-Antigravity CLI (`agy`), Vercel Skills e ai-memory à seleção atual:
+A instalação completa inclui os agentes, o gerenciador de skills e a memória local.
+Para selecionar outras finalidades, use a opção 2 do menu. Os componentes
+individuais continuam disponíveis para automação nas opções avançadas.
 
-```bash
-./install.sh --ai
-```
+O Codex usa o instalador standalone oficial da OpenAI, com executável nativo e
+auxiliares, sem npm nem Node. O reparo migra o launcher npm criado pelas versões
+anteriores deste setup, mantendo autenticação, configurações e o pacote antigo.
+Instalações externas continuam preservadas; para migrá-las, siga o instalador
+oficial e confira `command -v codex` antes de remover o pacote anterior.
 
-O menu `./install.sh --custom` também oferece o conjunto. Para escolher ferramentas
-individualmente, use `--components`, que substitui a seleção anterior:
-
-```bash
-./install.sh --components node,git,codex,skills,ai-memory
-```
-
-Codex e Skills incluem Node como dependência. As ferramentas ficam disponíveis de
-qualquer pasta para o usuário Linux atual, sem `sudo npm install -g`. Os pacotes
-npm administrados pelo setup usam `~/.local/share/meu-setup/npm`, sem mudar seu
-`.npmrc`; os launchers usam o Node padrão do fnm, preservando o Node escolhido pelo
-seu projeto e mantendo as CLIs disponíveis ao trocar de versão. Abra um
-terminal novo após instalar. Instalações Linux existentes são reaproveitadas e
-continuam sob seu gerenciador original. OMP não é instalado nem configurado.
+Somente Vercel Skills inclui Node como dependência. Seu pacote global usa
+`~/.local/share/meu-setup/npm`, sem mudar o `.npmrc`, e seu launcher usa o Node
+padrão do fnm. As ferramentas ficam disponíveis de qualquer pasta para o usuário
+Linux atual. Abra um terminal novo após instalar. OMP não é instalado nem configurado.
 
 O primeiro uso de `codex`, `claude`, `opencode` e `agy` segue a autenticação oficial
 de cada ferramenta. Instalar não inclui uma assinatura nem créditos de modelos.
 
 ### Atualizar
 
-`atualizar` mantém Claude Code e Antigravity sob seus atualizadores nativos, sem
-alterar escolhas que desabilitem essa função. Para instalações feitas pelo setup,
-atualiza Codex e Skills pelo npm e OpenCode pelo comando `opencode upgrade`. O
-OpenCode oferece avisos de atualização; a instalação da nova versão exige uma
-ação. Instalações externas são preservadas. Use `atualizar --no-ai` para pular IA.
+`atualizar` mostra um guia com os comandos e links oficiais das ferramentas
+selecionadas. Ele não consulta versões pela rede e não executa atualizações,
+reparos, backups, reinícios ou limpeza. Você escolhe quais comandos executar.
+Os atualizadores automáticos próprios das ferramentas continuam funcionando.
 
-ai-memory é atualizado pelo comando oficial, com backup antes da atualização e
-reinício do serviço de usuário ativo. Os backups ficam no estado local do setup,
-em `~/.local/state/meu-setup/ai-backups`. Migrações de banco podem exigir restaurar
-também os dados; voltar somente o executável não garante recuperação. Consulte o
-[guia oficial de backup e atualização](https://github.com/akitaonrails/ai-memory/blob/main/docs/install.md).
-
-O reparo comum reaproveita ferramentas funcionais. Novas instalações de Codex,
-Skills e ai-memory usam referências em `configs/versions.env`; a manutenção busca
-o canal estável oficial. Atualizações nativas podem avançar além das referências.
+Novas instalações de Codex, Skills e ai-memory usam as referências em
+`configs/versions.env`. Atualizações são feitas pelo usuário com o mecanismo
+oficial de cada ferramenta. No ai-memory, backup é opcional para quem precisa
+preservar a possibilidade de voltar de versão após uma migração de dados.
+[Guia oficial](https://github.com/akitaonrails/ai-memory/blob/main/docs/install.md).
 
 ### Skills globais
 
@@ -143,11 +147,12 @@ integração; não as mantenha simultaneamente por outro gerenciador.
 
 ### Memória local
 
-Selecione ao menos uma das quatro CLIs junto com ai-memory. A configuração usa o
+Na seleção individual avançada, inclua ao menos uma das quatro CLIs junto com ai-memory. A configuração usa o
 instalador oficial para registrar MCP, hooks e skills globais somente nos agentes
 selecionados. É necessário systemd de usuário funcionando no WSL. Se houver
 pendência, salve o trabalho, siga a orientação do diagnóstico e execute o reparo
-novamente após abrir uma sessão nova.
+pela opção 3 (Reparar) após abrir uma sessão nova. A falta do serviço de usuário
+deixa a memória pendente, sem desfazer as ferramentas já instaladas.
 
 Este perfil requer Python 3.11 ou mais recente (incluído no Ubuntu 24.04/26.04).
 O perfil usa embeddings locais `all-MiniLM-L6-v2`, em CPU, com download inicial de
@@ -229,7 +234,7 @@ No Docker, cada projeto ganha sua senha PostgreSQL no arquivo `.env`, que não e
 | `bat arquivo` | Mostra o arquivo com destaque de sintaxe |
 | `z nome` | Navega para uma pasta conhecida pelo Zoxide |
 | `ports` | Mostra portas em uso |
-| `atualizar` | Atualiza o setup e repara a instalação |
+| `atualizar` | Mostra como atualizar cada ferramenta, sem executar alterações |
 
 ## Portainer sob demanda
 
@@ -249,26 +254,28 @@ O reset reutiliza a imagem do container existente, evitando mudar a versão da b
 
 `portainer stop-all` para **todos** os containers, inclusive os de outros projetos. O serviço Docker e o WSL podem continuar consumindo recursos depois disso; o comando não promete devolver toda a memória ao Windows.
 
-## Atualizar sem perder trabalho
+## Consultar os comandos de atualização
 
 ```bash
-atualizar                    # Busca a branch atual e repara o ambiente
-atualizar --yes               # Mesmo fluxo, sem prompts; sem limpeza automática
-atualizar --system            # Também atualiza os pacotes APT
-atualizar --no-repo           # Mantém o checkout atual; não busca pela rede
+atualizar                    # Mostra instruções conforme a seleção de ferramentas
 ```
 
-Alterações locais são preservadas: nesse caso, a atualização remota é pulada com uma mensagem. Uma branch sem upstream também é preservada. O atualizador usa somente avanço direto da branch atual, sem trocar para `main` ou tentar um merge alternativo.
+O guia apenas lê a seleção local e imprime os comandos. Ele não verifica se há
+versões novas, não usa sudo e não modifica o repositório ou o ambiente. As opções
+antigas, como `--yes`, `--system` e `--clean-docker`, mostram uma mensagem de
+compatibilidade e também não executam ações.
 
-Ferramentas anteriores às versões de referência são atualizadas; versões mais novas e funcionais são preservadas. A reinstalação comum reaproveita ferramentas saudáveis. Node/Python de projetos existentes não são removidos. Um padrão Node incompatível com os novos templates pode ser atualizado, mantendo a versão antiga instalada para os seus projetos.
+Para atualizar o código do setup, confira as alterações locais com `git status` e,
+se o clone estiver limpo e a branch tiver upstream, execute `git pull --ff-only`
+dentro da pasta do projeto. Para reparar, execute `./install.sh` e escolha a opção 3.
 
-Limpeza de containers/caches é uma ação separada:
+A reinstalação comum reaproveita ferramentas saudáveis. Para aplicar as versões
+de referência testadas, existe `./install.sh --update-tools`. Node/Python de
+projetos existentes não são removidos. Um padrão Node incompatível com os templates
+pode ser atualizado, mantendo a versão antiga instalada para seus projetos.
 
-```bash
-atualizar --clean-docker
-```
-
-Esse comando mostra o que está em uso e exige digitar `LIMPAR` no terminal. `--yes` não substitui essa confirmação. Containers parados e cache de build podem conter trabalho útil. [Docker system prune](https://docs.docker.com/reference/cli/docker/system/prune/).
+A limpeza Docker é feita pelo próprio Docker, quando desejada; `atualizar` não
+remove containers, volumes ou caches. [Documentação Docker](https://docs.docker.com/reference/cli/docker/system/prune/).
 
 ## O que o reparo faz com instalações antigas
 

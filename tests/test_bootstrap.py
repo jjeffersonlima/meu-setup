@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 import unittest
 
+from pty_runner import run_terminal
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -75,15 +77,31 @@ exit "${MOCK_INSTALL_STATUS:-0}"
         self.bootstrap('--components', 'python,git')
         self.assertTrue((self.destination() / '.git').is_dir())
         self.assertEqual((self.home / 'received-arguments').read_text().splitlines(),
-                         ['--yes', '--config-only', '--user-only', '--components', 'python,git'])
+                         ['--config-only', '--user-only', '--components', 'python,git'])
         self.assertEqual(list(self.destination().parent.glob('.meu-setup-download.*')), [])
 
-    def test_repeat_updates_existing_clone_by_fast_forward(self):
+    def test_single_command_preserves_terminal_and_choice(self):
+        installer = self.repository / 'install.sh'
+        installer.write_text('''#!/bin/bash
+[ -t 0 ] || exit 9
+read -rp 'Escolha [1]: ' answer
+printf '%s' "$answer" > "$SETUP_HOME/terminal-choice"
+printf '%s\\n' "$@" > "$SETUP_HOME/received-arguments"
+''')
+        self.commit()
+        self.stub('curl', 'cat "$MOCK_BOOTSTRAP"')
+        result = run_terminal(['bash', '-c', self.seed_command()], '3\n',
+                              env=self.env, cwd=self.root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.home / 'terminal-choice').read_text(), '3')
+        self.assertNotIn('--yes', (self.home / 'received-arguments').read_text())
+
+    def test_repeat_preserves_existing_revision(self):
         self.bootstrap()
         (self.repository / 'new-version').write_text('nova versão')
         self.commit()
         self.bootstrap()
-        self.assertEqual((self.destination() / 'new-version').read_text(), 'nova versão')
+        self.assertFalse((self.destination() / 'new-version').exists())
 
     def test_registered_existing_installation_is_reused(self):
         destination = self.home / 'projetos/outro-caminho'
@@ -105,11 +123,11 @@ exit "${MOCK_INSTALL_STATUS:-0}"
         self.bootstrap()
         personal = self.destination() / 'meu-rascunho'
         personal.write_text('preservar')
-        self.bootstrap(ok=False)
+        self.bootstrap()
         self.assertEqual(personal.read_text(), 'preservar')
         personal.unlink()
         self.run_command(['git', '-C', self.destination(), 'checkout', '-q', '-b', 'estudos'])
-        self.bootstrap(ok=False)
+        self.bootstrap()
         branch = self.run_command(['git', '-C', self.destination(), 'branch', '--show-current']).stdout.strip()
         self.assertEqual(branch, 'estudos')
 

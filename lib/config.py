@@ -20,7 +20,7 @@ END = '# <<< meu-setup <<<'
 COMPONENTS = ('starship', 'node', 'python', 'docker', 'lazydocker', 'portainer',
               'lazygit', 'zoxide', 'bat', 'eza', 'git',
               'codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory')
-DEFAULT_COMPONENTS = COMPONENTS[:11]
+DEFAULT_COMPONENTS = COMPONENTS
 COMMANDS = {'node': 'node', 'python': 'uv', 'git': 'git', 'antigravity': 'agy'}
 
 
@@ -329,7 +329,7 @@ def restore(path, revision):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['inventory', 'components', 'normalize', 'migrate', 'backup', 'restore', 'ini', 'finalize'])
+    parser.add_argument('action', choices=['inventory', 'components', 'all-components', 'normalize', 'migrate', 'backup', 'restore', 'ini', 'finalize'])
     parser.add_argument('path', nargs='?')
     parser.add_argument('--components')
     parser.add_argument('--output')
@@ -338,6 +338,8 @@ def main():
     args = parser.parse_args()
     if args.action == 'inventory':
         print(json.dumps(inventory(), indent=2, ensure_ascii=False))
+    elif args.action == 'all-components':
+        print(','.join(COMPONENTS))
     elif args.action == 'normalize':
         print(','.join(parse_components(args.components)))
     elif args.action == 'components':

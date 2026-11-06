@@ -42,15 +42,15 @@ setup_environment
         self.assertEqual(result.returncode == 0, ok, result.stdout + result.stderr)
         return result
 
-    def test_new_default_excludes_ai_and_normalize_accepts_individual_components(self):
+    def test_new_default_includes_ai_and_normalize_accepts_individual_components(self):
         result = self.shell('setup_python components')
-        self.assertNotIn('codex', result.stdout)
+        self.assertIn('codex', result.stdout)
         result = self.shell('setup_python normalize --components codex,codex,antigravity,ai-memory')
         self.assertEqual(result.stdout.strip(), 'codex,antigravity,ai-memory')
 
     def test_native_existing_install_is_not_adopted(self):
         self.stub('codex', 'echo "codex 1.0.0"')
-        self.shell('setup_ai_install codex; setup_ai_update codex')
+        self.shell('setup_ai_install codex')
         self.assertFalse((self.home / '.local/state/meu-setup/ai-tools.json').exists())
 
     def test_broken_existing_install_is_not_overwritten(self):
@@ -59,20 +59,59 @@ setup_environment
         self.shell('setup_ai_install claude', ok=False)
         self.assertEqual(before, (self.mock / 'claude').read_bytes())
 
-    def test_native_updaters_are_not_run(self):
-        self.stub('claude', 'exit 99')
-        self.stub('agy', 'exit 99')
-        self.shell('setup_ai_update claude; setup_ai_update antigravity')
+    def test_update_guide_never_executes_tools_or_creates_state(self):
+        for tool in ('git', 'sudo', 'apt-get', 'npm', 'curl', 'docker', 'systemctl',
+                     'codex', 'claude', 'opencode', 'agy', 'skills', 'ai-memory'):
+            self.stub(tool, 'echo executed >> "$HOME/unexpected"; exit 99')
+        self.env['SETUP_COMPONENTS'] = 'codex,claude,opencode,antigravity,skills,ai-memory,node,python,docker'
+        result = subprocess.run([str(REPO / 'bin/atualizar'), '--yes', '--system', '--clean-docker'],
+                                env=self.env, cwd=self.root, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('ai-memory upgrade', result.stdout)
+        self.assertIn('opencode upgrade', result.stdout)
+        self.assertIn('https://chatgpt.com/codex/install.sh', result.stdout)
+        self.assertNotIn('npm install --global @openai/codex', result.stdout)
+        self.assertFalse(any(self.home.iterdir()))
 
-    def test_managed_opencode_uses_native_upgrade(self):
-        self.stub('opencode', 'if [ "$1" = --version ]; then echo 1.2.3; else echo "$*" > "$HOME/upgrade"; fi')
-        self.shell('setup_ai_state record opencode "$(command -v opencode)"; setup_ai_update opencode')
-        self.assertEqual((self.home / 'upgrade').read_text().strip(), 'upgrade')
+    def test_update_guide_uses_managed_skills_prefix(self):
+        self.stub('node', 'exit 99')
+        self.shell('setup_ai_state npm-launcher skills')
+        self.env['SETUP_COMPONENTS'] = 'skills'
+        result = self.shell('"$DIR_SETUP/bin/atualizar"')
+        self.assertIn('npm install --global --prefix', result.stdout)
+        self.assertIn(str(self.home / '.local/share/meu-setup/npm'), result.stdout)
 
-    def test_update_does_not_touch_replacement_install(self):
-        self.stub('codex', 'echo 1.0.0')
-        self.shell('setup_ai_state record codex /old/location; setup_ai_update codex')
-        self.assertIn('/old/location', (self.home / '.local/state/meu-setup/ai-tools.json').read_text())
+    def test_native_codex_install_does_not_use_node_or_npm(self):
+        self.stub('node', 'echo unexpected > "$HOME/node-called"; exit 99')
+        self.stub('npm', 'echo unexpected > "$HOME/npm-called"; exit 99')
+        self.shell('''setup_ai_script() {
+    [ "$1" = "https://raw.githubusercontent.com/openai/codex/rust-v$CODEX_VERSION/scripts/install/install.sh" ]
+    [ "$2" = --release ]
+    [ "$CODEX_NON_INTERACTIVE" = true ]
+    mkdir -p "$DIR_LOCAL_BIN"
+    printf '#!/bin/bash\\necho native-codex\\n' > "$DIR_LOCAL_BIN/codex"
+    chmod +x "$DIR_LOCAL_BIN/codex"
+}
+setup_ai_install codex''')
+        self.assertFalse((self.home / 'node-called').exists())
+        self.assertFalse((self.home / 'npm-called').exists())
+
+    def test_legacy_managed_codex_is_migrated_and_config_preserved(self):
+        launcher = self.home / '.local/bin/codex'
+        launcher.parent.mkdir(parents=True)
+        launcher.write_text('#!/bin/bash\n# meu-setup: CLI npm de IA\nexec node "$HOME/.local/share/meu-setup/npm/bin/codex" "$@"\n')
+        launcher.chmod(0o755)
+        auth = self.home / '.codex/auth.json'
+        auth.parent.mkdir()
+        auth.write_text('{"fixture":"preserved"}')
+        self.shell('''setup_ai_codex_install() {
+    printf '#!/bin/bash\\necho native-codex\\n' > "$DIR_LOCAL_BIN/codex"
+    chmod +x "$DIR_LOCAL_BIN/codex"
+}
+setup_ai_install codex''')
+        self.assertEqual(auth.read_text(), '{"fixture":"preserved"}')
+        self.assertIn('native-codex', launcher.read_text())
+        self.assertTrue((self.home / '.local/state/meu-setup/backups/index.json').is_file())
 
     def test_npm_prefix_is_stable_and_npmrc_preserved(self):
         self.stub('node', 'echo v26.13.0')
@@ -83,7 +122,7 @@ printf '#!/bin/bash\\necho 1.7.6\\n' > "$4/bin/skills"
 chmod +x "$4/bin/skills"''')
         npmrc = self.home / '.npmrc'
         npmrc.write_text('prefix=/personal/prefix\n')
-        self.shell('setup_ai_install skills; setup_ai_state owned skills "$(command -v skills)"')
+        self.shell('setup_ai_install skills')
         self.assertEqual(npmrc.read_text(), 'prefix=/personal/prefix\n')
         self.assertTrue((self.home / '.local/share/meu-setup/npm/bin/skills').is_file())
         self.shell('cd /tmp; skills --version')
@@ -133,15 +172,6 @@ chmod +x "$4/bin/skills"''')
         self.shell('SETUP_COMPONENTS=claude,codex,ai-memory; configurar_memoria_ia')
         self.assertEqual((self.home / 'setup-args').read_text().strip(), 'setup --yes --agent codex --agent claude-code')
 
-    def test_failed_update_is_reported_and_other_tools_continue(self):
-        self.stub('codex', 'echo 1.0.0')
-        self.stub('skills', 'echo 1.0.0')
-        result = self.shell('''SETUP_COMPONENTS=codex,skills
-SETUP_UPDATE_AI=true
-setup_ai_update() { echo "attempt:$1"; [ "$1" != codex ]; }
-instalar_ferramentas_ia''', ok=False)
-        self.assertIn('attempt:skills', result.stdout)
-
     def test_config_only_never_downloads_ai_tools(self):
         result = subprocess.run([str(REPO / 'install.sh'), '--yes', '--config-only', '--user-only',
                                  '--components', 'codex,skills'], cwd=self.root, env=self.env,
@@ -150,3 +180,20 @@ instalar_ferramentas_ia''', ok=False)
         saved = json.loads((self.home / '.local/state/meu-setup/state.json').read_text())
         self.assertEqual(saved['components'], ['codex', 'skills', 'node'])
         self.assertFalse((self.home / '.local/share/meu-setup/npm').exists())
+
+    def test_codex_alone_does_not_add_node_dependency(self):
+        result = subprocess.run([str(REPO / 'install.sh'), '--yes', '--config-only', '--user-only',
+                                 '--components', 'codex'], cwd=self.root, env=self.env,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        saved = json.loads((self.home / '.local/state/meu-setup/state.json').read_text())
+        self.assertEqual(saved['components'], ['codex'])
+
+    def test_missing_user_service_leaves_memory_pending_without_failing_install(self):
+        self.stub('ai-memory', 'exit 0')
+        self.stub('systemctl', 'exit 1')
+        path = self.home / '.local/share/ai-memory/config.toml'
+        path.parent.mkdir(parents=True)
+        path.write_text('embedding_provider = "local"\n')
+        result = self.shell('SETUP_COMPONENTS=codex,ai-memory; configurar_memoria_ia')
+        self.assertIn('PENDENTE', result.stdout)

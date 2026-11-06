@@ -18,10 +18,34 @@ source "$DIR_SETUP/configs/versions.env"
 source "$DIR_SETUP/lib/ai.sh"
 setup_environment
 umask 077
+# Migração real do launcher anterior, com node/npm indisponíveis neste passo.
+mkdir -p "$DIR_LOCAL_BIN" "$HOME/.codex" "$work/no-node" "$HOME/.local/share/meu-setup/npm/bin"
+# Variáveis devem ser expandidas apenas quando o launcher for executado.
+# shellcheck disable=SC2016
+printf '%s\n' '#!/bin/bash' '# meu-setup: CLI npm de IA' 'exec node "$HOME/.local/share/meu-setup/npm/bin/codex" "$@"' > "$DIR_LOCAL_BIN/codex"
+chmod +x "$DIR_LOCAL_BIN/codex"
+printf '%s\n' 'old package preserved' > "$HOME/.local/share/meu-setup/npm/bin/codex"
+printf '%s\n' 'model_reasoning_effort = "medium"' > "$HOME/.codex/config.toml"
+for runtime in node npm; do
+    # shellcheck disable=SC2016
+    printf '%s\n' '#!/bin/sh' 'touch "$HOME/unexpected-runtime-call"; exit 99' > "$work/no-node/$runtime"
+    chmod +x "$work/no-node/$runtime"
+done
+PATH="$work/no-node:$PATH" setup_ai_install codex
+test ! -e "$HOME/unexpected-runtime-call"
+python3 - <<'PY'
+import os
+from pathlib import Path
+home = Path(os.environ['HOME'])
+assert (home/'.codex/config.toml').read_text() == 'model_reasoning_effort = "medium"\n'
+with (home/'.local/bin/codex').open('rb') as binary:
+    assert binary.read(4) == b'\x7fELF'
+assert (home/'.local/share/meu-setup/npm/bin/codex').read_text() == 'old package preserved\n'
+PY
 instalar_ferramentas_ia
-first=$(cat "$SETUP_STATE_DIR/ai-tools.json")
+first=$(readlink -f "$(command -v codex)")
 instalar_ferramentas_ia
-[ "$first" = "$(cat "$SETUP_STATE_DIR/ai-tools.json")" ]
+[ "$first" = "$(readlink -f "$(command -v codex)")" ]
 cd /tmp
 for command in codex claude opencode agy skills ai-memory; do setup_native "$command"; done
 setup_ai_state prepare-memory
@@ -52,25 +76,12 @@ ai-memory write-page --workspace integration --project fixture-b --path concepts
 ai-memory embed --workspace integration --project fixture-a
 test -s "$HOME/.local/share/ai-memory/models/all-MiniLM-L6-v2/model.safetensors"
 python3 -B "$DIR_SETUP/tests/ai_mcp_check.py"
-# Exercita os mecanismos reais de manutenção sem iniciar agentes autenticados.
-setup_ai_update codex
-setup_ai_update skills
-setup_ai_update opencode
-# O fornecedor recusa autoatualização nativa dentro de container. Comprova
-# backup anterior e a recusa, sem contornar a proteção oficial.
-if setup_ai_update ai-memory > "$work/memory-update.log" 2>&1; then
-    echo 'ai-memory atualizado pelo mecanismo oficial.'
-else
-    python3 - "$work/memory-update.log" <<'PY'
-from pathlib import Path
-import sys
-text = Path(sys.argv[1]).read_text()
-if 'refusing to self-upgrade inside a container' not in text:
-    raise SystemExit(text)
-print('ai-memory: backup criado; recusa oficial de autoatualização em container confirmada.')
-PY
-fi
-find "$SETUP_STATE_DIR/ai-backups" -name '*.tar.gz' -size +0c | python3 -c 'import sys; assert sys.stdin.read().strip()'
+# O guia apenas imprime instruções, inclusive com as opções antigas.
+"$DIR_SETUP/bin/atualizar" --yes --system --clean-docker > "$work/update-guide.txt"
+[ ! -d "$SETUP_STATE_DIR/ai-backups" ]
+# Codex é o executável standalone oficial, sem launcher npm.
+[ -L "$HOME/.local/bin/codex" ]
+test ! -e "$HOME/unexpected-runtime-call"
 ai-memory backup --to "$work/backup.tar.gz"
 test -s "$work/backup.tar.gz"
 test -s "$HOME/.agents/skills/ai-memory-retrieval/SKILL.md"

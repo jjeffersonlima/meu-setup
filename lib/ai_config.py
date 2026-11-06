@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Estado de propriedade e política local do ai-memory; nunca lê credenciais."""
+"""Perfil local de memória e launchers do setup; nunca lê credenciais."""
 import json
 import os
 from pathlib import Path
@@ -8,8 +8,6 @@ import subprocess
 import sys
 
 import config
-
-STATE_FILE = config.STATE / 'ai-tools.json'
 
 
 def memory_dir():
@@ -59,7 +57,7 @@ def prepare_memory():
 
 
 def npm_launcher(name):
-    if name not in ('codex', 'skills'):
+    if name != 'skills':
         raise ValueError('CLI npm desconhecida')
     path = config.HOME_DIR / '.local/bin' / name
     marker = '# meu-setup: CLI npm de IA'
@@ -83,13 +81,14 @@ def main():
         check_memory(memory_dir() / 'config.toml')
     elif action == 'npm-launcher':
         npm_launcher(sys.argv[2])
-    elif action in ('record', 'owned'):
-        name, path = sys.argv[2:4]
-        state = config.load(STATE_FILE, {})
-        if action == 'owned':
-            return 0 if state.get(name, {}).get('path') == path else 1
-        state[name] = {'path': path}
-        config.json_write(STATE_FILE, state)
+    elif action == 'legacy-codex':
+        path = config.HOME_DIR / '.local/bin/codex'
+        if not path.is_file() or path.is_symlink():
+            return 1
+        with path.open('rb') as stream:
+            header = stream.read(1024)
+        return 0 if (b'# meu-setup: CLI npm de IA' in header
+                     and b'/.local/share/meu-setup/npm/bin/codex' in header) else 1
     else:
         raise ValueError('Ação desconhecida')
     return 0

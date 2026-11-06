@@ -125,17 +125,9 @@ def main():
         completion = config.HOME_DIR / '.local/share/bash-completion/completions/uv'
         if not completion.is_file() or not completion.stat().st_size:
             row('Autocompletar uv', 'PENDENTE', 'Execute o reparo para gerar o arquivo.')
-    ownership = config.load(config.STATE / 'ai-tools.json', {})
     for component in ('codex', 'claude', 'opencode', 'antigravity', 'skills', 'ai-memory'):
-        if component not in components:
-            continue
-        if component in ('claude', 'antigravity'):
-            detail = 'Atualizador nativo; configuração do usuário preservada.'
-        elif component in ownership:
-            detail = 'Gerenciada por atualizar; --no-ai pula esta etapa.'
-        else:
-            detail = 'Instalação externa; use seu gerenciador original.'
-        row('Atualização ' + component, 'INFO', detail)
+        if component in components:
+            row('Atualização ' + component, 'INFO', 'Execute atualizar para consultar os comandos oficiais.')
     if 'ai-memory' in components:
         from ai_config import memory_dir, check_memory
         try:

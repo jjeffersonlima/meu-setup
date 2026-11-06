@@ -9,37 +9,44 @@ source "$DIR_SETUP/lib/log.sh"
 
 mostrar_ajuda() {
     cat <<'EOF'
-Uso: ./install.sh [OPÇÕES]
-  -y, --yes           Instala/repara sem menu, lembrando a seleção anterior
-  --update-tools      Atualiza ferramentas até as versões de referência testadas
-  --ai                Acrescenta as ferramentas de IA à seleção
-  --update-ai         Atualiza IA gerenciada sem atualização automática
-  --repair            Repara a instalação e as configurações existentes
-  -c, --custom        Escolhe as ferramentas por finalidade
-  --components LISTA  Seleção explícita, separada por vírgulas (consulte README)
-  --config-only       Repara configurações; não instala pacotes ou ferramentas
-  --docker-boot MODO  Inicialização Docker: keep (padrão), on ou off
-  --user-only         Preserva wsl.conf, .wslconfig e containers existentes
-  --inventory         Mostra o inventário sem alterar arquivos
-  -h, --help          Mostra esta ajuda sem alterar o ambiente
+Uso: ./install.sh
+Abre o menu: instalar tudo (padrão), escolher componentes, reparar ou sair.
+  -y, --yes          Sem menu: mantém a seleção salva; no primeiro uso instala tudo
+  --repair           Repara usando a seleção salva
+  --help             Mostra esta ajuda
+Para opções de automação e diagnóstico: ./install.sh --help-advanced
 EOF
 }
 
 main() {
-    local custom=false inventory=false components_set=false ai=false reply component label
-    export SETUP_UPDATE_AI=false
+    local inventory=false components_set=false ai=false
+    SETUP_ACTION=menu
     export SETUP_CONFIG_ONLY=false SETUP_USER_ONLY=false SETUP_NON_INTERACTIVE=false SETUP_UPDATE_TO_REFERENCE=false SETUP_DOCKER_BOOT=keep
     SETUP_COMPONENTS=""
     while (($#)); do
         case "$1" in
             -h|--help) mostrar_ajuda; return 0 ;;
+            --help-advanced)
+                mostrar_ajuda
+                cat <<'ADVANCED'
+Opções avançadas (não são necessárias no uso normal):
+  --full              Seleciona todos os componentes, inclusive IA
+  --components LISTA  Seleção explícita separada por vírgulas
+  --config-only       Repara somente configuração, sem instalar ferramentas
+  --user-only         Preserva arquivos WSL/Windows e containers existentes
+  --inventory         Somente leitura: mostra o inventário
+  --update-tools      Aplica versões de referência das ferramentas básicas
+  --docker-boot MODO  keep (padrão), on ou off
+Compatibilidade: --ai acrescenta IA; --custom abre a escolha por grupos.
+ADVANCED
+                return 0 ;;
             -y|--yes|--non-interactive) SETUP_NON_INTERACTIVE=true ;;
-            --repair) : ;;
-            --ai) ai=true ;;
-            --update-ai) SETUP_UPDATE_AI=true ;;
-            --update-tools) export SETUP_UPDATE_TO_REFERENCE=true ;;
-            -c|--custom) custom=true ;;
-            --config-only) SETUP_CONFIG_ONLY=true ;;
+            --repair) SETUP_ACTION=repair ;;
+            --full) SETUP_ACTION=full ;;
+            --ai) ai=true; SETUP_ACTION=selected ;;
+            --update-tools) export SETUP_UPDATE_TO_REFERENCE=true; SETUP_ACTION=selected ;;
+            -c|--custom) SETUP_ACTION=custom ;;
+            --config-only) SETUP_CONFIG_ONLY=true; SETUP_ACTION=selected ;;
             --user-only) SETUP_USER_ONLY=true ;;
             --inventory) inventory=true ;;
             --docker-boot)
@@ -48,11 +55,23 @@ main() {
                 shift ;;
             --components)
                 if [ "$#" -lt 2 ] || [[ "$2" == -* ]]; then log_erro 'Informe a lista após --components.'; return 2; fi
-                SETUP_COMPONENTS="$2"; components_set=true; shift ;;
+                SETUP_COMPONENTS="$2"; components_set=true; SETUP_ACTION=selected; shift ;;
             *) log_erro "Opção desconhecida: $1"; return 2 ;;
         esac
         shift
     done
+    # O menu vem antes de Python, sudo, locks e logs: sair não altera arquivos.
+    if [ "$inventory" = false ]; then
+        if [ "$SETUP_ACTION" = custom ] || { [ "$SETUP_ACTION" = menu ] && [ "$SETUP_NON_INTERACTIVE" = false ]; }; then
+            # shellcheck source=lib/menu.sh
+            source "$DIR_SETUP/lib/menu.sh"
+            setup_install_menu
+            [ "$SETUP_ACTION" != exit ] || return 0
+        fi
+        if [ "$SETUP_ACTION" = repair ] && [ ! -f "$SETUP_STATE_DIR/state.json" ]; then
+            log_erro 'Não há seleção salva. Execute ./install.sh para instalar.'; return 2
+        fi
+    fi
     if ! command -v python3 >/dev/null; then
         if [ "$inventory" = true ] || [ "$SETUP_CONFIG_ONLY" = true ]; then
             log_erro 'Python3 ausente. Execute a instalação completa para preparar o reparo.'; return 1
@@ -64,31 +83,10 @@ main() {
     fi
     setup_environment
     if [ "$inventory" = true ]; then setup_python inventory; return; fi
-    if [ "$components_set" = false ]; then SETUP_COMPONENTS=$(setup_python components); fi
-    if [ "$custom" = true ]; then
-        [ -t 0 ] || { log_erro '--custom precisa de um terminal; use --components na automação.'; return 2; }
-        SETUP_COMPONENTS=""
-        echo 'Escolha o que quer usar. O reparo preserva seus projetos e dados.'
-        for component in starship node python docker lazydocker portainer lazygit zoxide bat eza git; do
-            case "$component" in
-                node) label='Sites e aplicativos (Node/pnpm)' ;;
-                python) label='Automações (Python/uv)' ;;
-                docker) label='Bancos e containers (Docker/Compose)' ;;
-                lazydocker) label='Painel Docker no terminal' ;;
-                portainer) label='Painel Docker no navegador, sob demanda' ;;
-                git) label='Git e GitHub' ;;
-                *) label="$component (conveniência no terminal)" ;;
-            esac
-            read -rp "Habilitar $label? [S/n]: " reply
-            case "$reply" in n|N) ;; *) SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}$component" ;; esac
-        done
-        read -rp 'Habilitar agentes de IA, skills e memória local? [s/N]: ' reply
-        case "$reply" in s|S) ai=true ;; esac
-    elif [ "$SETUP_NON_INTERACTIVE" = false ] && [ -t 0 ]; then
-        echo "Ferramentas selecionadas: ${SETUP_COMPONENTS:-somente atalhos/configuração}"
-        echo 'Instalações anteriores serão reparadas automaticamente. Dados pessoais serão preservados.'
-        read -rp 'Continuar? [S/n]: ' reply
-        case "$reply" in n|N) return 0 ;; esac
+    if [ "$SETUP_ACTION" = full ]; then
+        SETUP_COMPONENTS=$(setup_python all-components)
+    elif [ "$SETUP_ACTION" != custom ] && [ "$components_set" = false ]; then
+        SETUP_COMPONENTS=$(setup_python components)
     fi
     if [ "$ai" = true ]; then
         SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}codex,claude,opencode,antigravity,skills,ai-memory"
@@ -99,7 +97,7 @@ main() {
     if setup_selected lazydocker || setup_selected portainer; then
         setup_selected docker || SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}docker"
     fi
-    if setup_selected codex || setup_selected skills; then
+    if setup_selected skills; then
         setup_selected node || SETUP_COMPONENTS="${SETUP_COMPONENTS:+$SETUP_COMPONENTS,}node"
     fi
     SETUP_COMPONENTS=$(setup_python normalize --components "$SETUP_COMPONENTS")

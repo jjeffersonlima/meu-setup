@@ -9,7 +9,7 @@ Uso: bootstrap.sh [--dir CAMINHO] [opções do install.sh]
 Prepara os pré-requisitos, obtém o código e instala/repara o ambiente.
   --dir CAMINHO  Escolhe onde manter o código (padrão: instalação anterior ou ~/.local/share/meu-setup)
   --help         Mostra esta ajuda sem alterar o sistema
-As demais opções são encaminhadas ao instalador, incluindo --custom e --components.
+Sem opções, abre o mesmo menu do install.sh. Use --yes somente para automação.
 O código permanece na pasta de instalação para manter os atalhos e as atualizações.
 HELP
 }
@@ -44,7 +44,7 @@ bootstrap_validate_tree() {
 bootstrap_main() {
     local user_home="${SETUP_HOME:-$HOME}" directory="${MEU_SETUP_DIR:-}"
     local repository="${MEU_SETUP_REPOSITORY:-https://github.com/jjeffersonlima/meu-setup.git}"
-    local config_only=false argument current_origin current_branch recorded
+    local current_origin recorded
     local -a installer_args=() packages=()
     while (($#)); do
         case "$1" in
@@ -55,9 +55,6 @@ bootstrap_main() {
             --) shift; installer_args+=("$@"); break ;;
             *) installer_args+=("$1"); shift ;;
         esac
-    done
-    for argument in "${installer_args[@]}"; do
-        if [ "$argument" = --config-only ] || [ "$argument" = --inventory ]; then config_only=true; fi
     done
     if [ "$(uname -s)" != Linux ] || ! command -v apt-get >/dev/null; then
         bootstrap_error 'Execute dentro do Ubuntu/WSL ou de uma distribuição Linux com APT.'; return 1
@@ -107,13 +104,8 @@ PY
         [ "$(bootstrap_normalize_repository "$current_origin")" = "$(bootstrap_normalize_repository "$repository")" ] || {
             bootstrap_error 'O destino pertence a outro repositório. Escolha outro caminho com --dir.'; return 1;
         }
-        [ -z "$(git -C "$directory" status --porcelain)" ] || {
-            bootstrap_error "Há alterações locais em $directory. Preserve e resolva essas alterações antes de repetir o comando."; return 1;
-        }
-        current_branch=$(git -C "$directory" branch --show-current)
-        [ "$current_branch" = main ] || { bootstrap_error 'O clone está em outra branch. Nenhuma branch foi trocada; use o instalador local ou selecione main.'; return 1; }
-        timeout 180 git -C "$directory" fetch origin main
-        git -C "$directory" merge --ff-only origin/main
+        # Reparo reaproveita o código local, inclusive personalizações. Atualização
+        # do clone é uma escolha separada, documentada pelo comando atualizar.
         bootstrap_validate_tree "$directory"
     else
         mkdir -p "$(dirname "$directory")"
@@ -125,14 +117,12 @@ PY
         BOOTSTRAP_STAGE=""
     fi
     echo "Código do meu-setup disponível em: $directory"
-    # O instalador usa sudo -n no modo automático; autenticar uma vez com o terminal disponível.
-    if [ "$config_only" = false ]; then bootstrap_authenticate; fi
     flock -u "$install_lock"
     exec {install_lock}>&-
     # O pai mantém o lock do bootstrap; os processos do instalador não o herdam.
     (
         exec {bootstrap_lock}>&-
-        bash "$directory/install.sh" --yes "${installer_args[@]}"
+        bash "$directory/install.sh" "${installer_args[@]}"
     )
 }
 BOOTSTRAP_STAGE=""

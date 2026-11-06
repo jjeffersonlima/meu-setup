@@ -20,7 +20,7 @@ setup_ai_script() {
 setup_ai_npm() {
     local component="$1" version="$2" package prefix
     prefix="$SETUP_USER_HOME/.local/share/meu-setup/npm"
-    case "$component" in codex) package=@openai/codex ;; skills) package=skills ;; *) return 2 ;; esac
+    case "$component" in skills) package=skills ;; *) return 2 ;; esac
     if ! setup_native npm || ! setup_node_compatible; then
         log_erro 'Repare o Node Linux antes de instalar IA.'; return 1
     fi
@@ -34,6 +34,10 @@ setup_ai_npm() {
 setup_ai_install() {
     local component="$1" command path
     command=$(setup_ai_command "$component")
+    if [ "$component" = codex ] && setup_ai_state legacy-codex; then
+        setup_backup "$DIR_LOCAL_BIN/codex" >/dev/null || return
+        setup_ai_codex_install || return
+    fi
     if setup_native "$command"; then
         log_pulado "$command Linux preservado."
         return 0
@@ -45,7 +49,7 @@ setup_ai_install() {
         return 1
     fi
     case "$component" in
-        codex) setup_ai_npm codex "$CODEX_VERSION" || return ;;
+        codex) setup_ai_codex_install || return ;;
         skills) setup_ai_npm skills "$SKILLS_VERSION" || return ;;
         claude) setup_ai_script https://claude.ai/install.sh stable || return ;;
         opencode) setup_ai_script https://opencode.ai/install --no-modify-path || return ;;
@@ -55,7 +59,13 @@ setup_ai_install() {
     esac
     hash -r
     setup_native "$command" || { log_erro "$command não ficou disponível no Linux."; return 1; }
-    setup_ai_state record "$component" "$(command -v "$command")"
+}
+
+setup_ai_codex_install() {
+    # Mesmo instalador standalone oficial, fixado ao tag de referência. Inclui
+    # os auxiliares do Codex; não exige npm nem Node e não inicia uma sessão.
+    CODEX_NON_INTERACTIVE=true CODEX_INSTALL_DIR="$DIR_LOCAL_BIN" \
+        setup_ai_script "https://raw.githubusercontent.com/openai/codex/rust-v$CODEX_VERSION/scripts/install/install.sh" --release "$CODEX_VERSION"
 }
 
 setup_ai_memory_install() {
@@ -78,34 +88,6 @@ PY
     return "$status"
 }
 
-setup_ai_update() {
-    local component="$1" command before after archive
-    command=$(setup_ai_command "$component")
-    case "$component" in
-        claude|antigravity)
-            log_info "$command: atualização nativa preservada; respeita sua configuração atual."; return 0 ;;
-    esac
-    if ! setup_ai_state owned "$component" "$(command -v "$command")"; then
-        log_aviso "$command: instalação externa preservada. Atualize pelo gerenciador original."; return 0
-    fi
-    before=$("$command" --version) || return
-    case "$component" in
-        codex|skills) setup_ai_npm "$component" latest || return ;;
-        opencode) timeout 600 opencode upgrade || return ;;
-        ai-memory)
-            setup_ai_state check-memory || return
-            mkdir -p "$SETUP_STATE_DIR/ai-backups" || return
-            archive="$SETUP_STATE_DIR/ai-backups/$(date +%Y%m%d_%H%M%S)_$$.tar.gz"
-            timeout 180 ai-memory backup --to "$archive" || return
-            timeout 600 ai-memory upgrade || return
-            if systemctl --user is-active --quiet ai-memory.service; then
-                systemctl --user restart ai-memory.service || return
-            fi ;;
-    esac
-    after=$("$command" --version) || return
-    log_sucesso "$command: $before → $after"
-}
-
 instalar_ferramentas_ia() {
     local component failures=0
     for component in codex claude opencode antigravity skills ai-memory; do
@@ -114,12 +96,10 @@ instalar_ferramentas_ia() {
             log_erro 'Instaladores de IA exigem SETUP_HOME igual ao HOME do usuário atual.'
             return 1
         fi
-        # Subshell com errexit: falhas internas nunca são mascaradas pelo resumo.
-        if (set -e; setup_ai_install "$component"); then
-            if [ "${SETUP_UPDATE_AI:-false}" = true ]; then
-                (set -e; setup_ai_update "$component") || { log_erro "Falha ao atualizar $component."; failures=$((failures + 1)); }
-            fi
-        else log_erro "Falha ao instalar $component."; failures=$((failures + 1)); fi
+        # As funções propagam falhas explicitamente para o resumo.
+        if ! (set -e; setup_ai_install "$component"); then
+            log_erro "Falha ao instalar $component."; failures=$((failures + 1))
+        fi
     done
     [ "$failures" -eq 0 ] || { log_erro "$failures ferramenta(s) de IA com falha; execute novamente após corrigir."; return 1; }
 }
@@ -142,8 +122,8 @@ configurar_memoria_ia() {
     fi
     setup_ai_state prepare-memory || return
     if ! timeout 10 systemctl --user show-environment >/dev/null 2>&1; then
-        log_erro 'Serviço de usuário indisponível. Habilite systemd no WSL e abra nova sessão antes de configurar ai-memory.'
-        return 1
+        log_aviso 'PENDENTE: serviço de usuário indisponível. Após habilitar systemd/reiniciar o WSL, escolha Reparar no menu para concluir ai-memory.'
+        return 0
     fi
     # O instalador oficial preserva entradas alheias e instala skills globais.
     timeout 300 ai-memory setup --yes "${agents[@]}" || return

@@ -1,74 +1,18 @@
 #!/usr/bin/env bash
-# meu-setup: manutenção conservadora. Limpeza Docker é uma ação explícita separada.
-set -Eeuo pipefail
+# meu-setup: guia de manutenção, sem executar atualizações ou reparos.
+set -euo pipefail
 DIR_SETUP="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
-# shellcheck source=lib/common.sh
-source "$DIR_SETUP/lib/common.sh"
-# shellcheck source=lib/log.sh
-source "$DIR_SETUP/lib/log.sh"
-yes=false system=false repository=true clean=false config_only=false user_only=false ai=true
 while (($#)); do
     case "$1" in
         -h|--help)
-            cat <<'HELP'
-Uso: atualizar [OPÇÕES]
-Repara a configuração e instala componentes selecionados que estejam ausentes/inválidos.
-  -y, --yes       Sem prompts; NÃO apaga containers ou caches
-  --system        Também atualiza pacotes APT do sistema
-  --no-repo       Não busca atualizações do repositório
-  --config-only   Repara apenas configurações, sem instalar ferramentas
-  --user-only     Não altera configurações WSL/Windows ou containers
-  --no-ai         Não atualiza ferramentas de IA
-  --clean-docker  Ação separada: remove containers parados e cache, com confirmação
-  --no-prune      Compatibilidade com versões antigas; a limpeza já é desativada
-  -h, --help      Exibe esta ajuda
-Ferramentas anteriores à referência testada são atualizadas; versões mais novas são preservadas. Não altera versões dos seus projetos.
-HELP
+            echo 'Uso: atualizar'
+            echo 'Mostra os comandos de atualização das ferramentas selecionadas.'
+            echo 'Não acessa a rede, não instala, não repara e não remove arquivos.'
             exit 0 ;;
-        -y|--yes) yes=true ;;
-        --system) system=true ;;
-        --no-repo) repository=false ;;
-        --config-only) config_only=true ;;
-        --no-ai) ai=false ;;
-        --user-only) user_only=true ;;
-        --clean-docker) clean=true ;;
-        --no-prune) : ;;
-        *) log_erro "Opção desconhecida: $1"; exit 2 ;;
+        -y|--yes|--system|--no-repo|--config-only|--user-only|--no-ai|--no-prune|--clean-docker)
+            echo "Opção antiga $1: o comando agora é somente informativo." ;;
+        *) echo "Opção desconhecida: $1" >&2; exit 2 ;;
     esac
     shift
 done
-setup_environment
-if [ "$clean" = true ]; then
-    [ -t 0 ] || { log_erro 'A limpeza precisa de confirmação em um terminal; --yes não autoriza apagar dados.'; exit 2; }
-    echo 'Esta ação remove TODOS os containers parados, redes sem uso e cache de build.'
-    docker ps -a --filter status=exited
-    docker system df
-    read -rp 'Digite LIMPAR para continuar: ' answer
-    [ "$answer" = LIMPAR ] || { echo 'Limpeza cancelada.'; exit 0; }
-    docker system prune -f
-    exit
-fi
-# Não atualiza um script que ainda está em execução: prepara tudo antes do exec final.
-setup_lock
-if [ "$repository" = true ] && git -C "$DIR_SETUP" rev-parse --git-dir >/dev/null 2>&1; then
-    if [ -n "$(git -C "$DIR_SETUP" status --porcelain)" ]; then
-        log_aviso 'Alterações locais detectadas. Repositório preservado; atualização remota ignorada.'
-    elif git -C "$DIR_SETUP" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-        timeout 90 git -C "$DIR_SETUP" fetch --prune
-        # Atualiza somente a branch atual pelo upstream já configurado.
-        git -C "$DIR_SETUP" merge --ff-only '@{u}'
-    else log_aviso 'Branch sem upstream. Repositório preservado.'; fi
-fi
-if [ "$system" = true ]; then
-    setup_admin env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 update
-    setup_admin env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
-fi
-# Libera o lock antes de delegar ao mesmo instalador usado no reparo.
-flock -u "$SETUP_LOCK_FD"
-exec {SETUP_LOCK_FD}>&-
-args=(--repair --update-tools)
-[ "$ai" = false ] || args+=(--update-ai)
-[ "$yes" = false ] || args+=(--yes)
-[ "$config_only" = false ] || args+=(--config-only)
-[ "$user_only" = false ] || args+=(--user-only)
-exec "$DIR_SETUP/install.sh" "${args[@]}"
+exec python3 -B "$DIR_SETUP/lib/update_guide.py"

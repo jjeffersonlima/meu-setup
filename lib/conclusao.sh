@@ -10,5 +10,5 @@ mostrar_conclusao() {
     echo "Log: $LOG_FILE"
     echo "Backups e inventário: $SETUP_STATE_DIR"
     echo 'Abra um terminal novo para carregar os atalhos corrigidos.'
-    echo 'Comece com novo; verifique o ambiente com doctor; mantenha com atualizar.'
+    echo 'Comece com novo; verifique o ambiente com doctor; consulte os comandos de manutenção com atualizar.'
 }

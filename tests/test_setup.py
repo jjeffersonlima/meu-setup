@@ -352,7 +352,7 @@ state.write_text(json.dumps(s))
         calls = [json.loads(line) for line in Path(self.env['MOCK_DOCKER_LOG']).read_text().splitlines()]
         self.assertFalse(any(c[0] in ('run', 'create', 'rm', 'start', 'stop', 'pull') for c in calls))
 
-    def test_update_reuses_installer_without_changing_healthy_configuration(self):
+    def test_update_guide_preserves_configuration(self):
         self.install()
         first = self.snapshot()
         self.command([REPO / 'bin/atualizar', '--yes', '--no-repo', '--config-only', '--user-only'])
@@ -361,7 +361,7 @@ state.write_text(json.dumps(s))
 
     def test_update_yes_does_not_authorize_cleanup(self):
         self.docker_mock()
-        self.command([REPO / 'bin/atualizar', '--yes', '--clean-docker'], ok=False)
+        self.command([REPO / 'bin/atualizar', '--yes', '--clean-docker'])
         self.assertFalse(Path(self.env['MOCK_DOCKER_LOG']).exists())
 
     def test_doctor_does_not_invent_versions(self):
